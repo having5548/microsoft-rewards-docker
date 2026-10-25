@@ -1617,7 +1617,27 @@ async function openCookieLoginWindow(scope = 'settings', targetInputId = null) {
   const accountId = resolveCookieLoginAccountId(scope);
   cookieLoginAccountId = accountId;
   cookieLoginTargetInput = targetInputId || null;
-  showToast('正在容器内启动登录窗口…', 'info');
+
+  // 先把小窗和状态条显示出来，再去请求后端。
+  // 冷启动一个 Chromium 要 2-5 秒（NAS 上更久），等接口回来才弹窗会让用户以为按钮没反应。
+  // 这里刻意不调 openNovncModal：它会把 iframe 指向 noVNC 页面，而此刻 websockify 还没起来，
+  // 会先闪一个「无法连接」。等接口返回拿到真实地址再一次性加载。
+  const titleEl = document.getElementById('novnc-modal-title');
+  if (titleEl) titleEl.innerText = '微软账号登录窗口';
+  const saveBtn = document.getElementById('btn-novnc-save-cookie');
+  if (saveBtn) saveBtn.style.display = 'inline-flex';
+  openModal('novnc-modal');
+  const statusBar = document.getElementById('login-window-status');
+  if (statusBar) statusBar.style.display = 'flex';
+  setLoginWindowStatus({
+    badge: '启动中',
+    badgeCls: 'idle',
+    action: '正在容器内启动浏览器（首次启动约 2-5 秒）…',
+    cookies: '浏览器起来后小窗会自动出现画面',
+    error: ''
+  });
+  resetLoginWindowSaveButton(true);
+
   try {
     const res = await fetch('/api/auth/login-window', {
       method: 'POST',
@@ -1627,8 +1647,6 @@ async function openCookieLoginWindow(scope = 'settings', targetInputId = null) {
     if (!res.success || !res.data?.url) throw new Error(res.message || '登录窗口启动失败');
     cookieLoginAccountId = res.data.accountId || accountId;
     openNovncModal({ title: '微软账号登录窗口', url: res.data.url, showSave: true });
-    const statusBar = document.getElementById('login-window-status');
-    if (statusBar) statusBar.style.display = 'flex';
     setLoginWindowStatus({
       badge: '等待登录',
       badgeCls: 'idle',
@@ -1640,9 +1658,6 @@ async function openCookieLoginWindow(scope = 'settings', targetInputId = null) {
     startCookieLoginPolling();
   } catch (e) {
     stopCookieLoginPolling();
-    openNovncModal({ title: '微软账号登录窗口', showSave: true });
-    const statusBar = document.getElementById('login-window-status');
-    if (statusBar) statusBar.style.display = 'flex';
     setLoginWindowStatus({
       badge: '启动失败',
       badgeCls: 'err',
@@ -2218,6 +2233,9 @@ async function fetchStatus() {
     const res = await fetch(`/api/status?accountId=${selectedAccountId}`).then(r => r.json());
     if (res.success && res.data) {
       currentStatus = res.data;
+      // 版本号以服务端为准：HTML 里的静态文本只是首屏占位，升级时最容易漏改
+      const versionLabel = document.getElementById('version-label');
+      if (versionLabel && res.data.version) versionLabel.innerText = `v${res.data.version}`;
       renderDashboard(res.data);
     }
   } catch (e) {

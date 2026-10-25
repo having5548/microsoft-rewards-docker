@@ -515,6 +515,9 @@ export function createServer() {
     const data = taskManager.getStatus(accountId);
     // 附带各账号的下次计划启动时间，供卡片展示
     data.schedule = scheduler.getNextRunInfo();
+    // 版本号由服务端下发：前端那份 HTML 里的静态文本升级时容易忘改，
+    // 之前就出现过服务端 1.9.0、界面胶囊还挂着 v1.8.6 的情况。
+    data.version = CURRENT_VERSION;
     res.json({
       success: true,
       data

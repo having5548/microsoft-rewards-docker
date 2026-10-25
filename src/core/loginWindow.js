@@ -178,18 +178,27 @@ class LoginWindow {
       });
 
       this.page = this.context.pages()[0] || await this.context.newPage();
-      this.lastAction = '正在打开微软 Rewards 登录页...';
-      try {
-        await this.page.goto('https://rewards.bing.com/dashboard', {
-          waitUntil: 'domcontentloaded',
-          timeout: 45000
-        });
-      } catch (e) {
-        this.lastAction = `页面加载较慢（${e.message}），可以稍后在窗口里手动刷新`;
-      }
 
       this.startPolling();
       this.armTimeout();
+
+      // 首屏导航**不阻塞接口返回**：容器在 NAS 上、走代理时 rewards.bing.com 可能十几秒
+      // 才 domcontentloaded，接口要是等它，前端就会长时间停在「启动中」看不到画面。
+      // 这里立刻把状态返回去，小窗先连上（noVNC 拿到的是 X 显示，不依赖页面加载），
+      // 页面加载完成后再由轮询把提示文案更新回来。
+      this.lastAction = '正在打开微软 Rewards 登录页...';
+      this.page.goto('https://rewards.bing.com/dashboard', {
+        waitUntil: 'domcontentloaded',
+        timeout: 45000
+      }).then(() => {
+        if (this.isOpen() && !this.loggedIn) {
+          this.lastAction = '登录页已打开，请在小窗里登录微软账号';
+        }
+      }).catch((e) => {
+        if (this.isOpen()) {
+          this.lastAction = `页面加载较慢（${e.message}），可以在小窗里手动刷新或直接登录`;
+        }
+      });
 
       logger.log('🌐', `已打开微软账号登录窗口${acc ? `（账号 ${acc.name}）` : ''}，请在窗口中完成登录`, '', acc?.name);
       return this.getState();
