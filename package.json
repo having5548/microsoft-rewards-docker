@@ -18,7 +18,7 @@
     "automation",
     "webui"
   ],
-  "author": "wangheqiang530",
+  "author": "having5548",
   "license": "MIT",
   "dependencies": {
     "axios": "^1.7.9",
@@ -29,5 +29,16 @@
     "patchright-core": "^1.64.0",
     "socks": "^2.8.10",
     "socks-proxy-agent": "^8.0.5"
+  },
+  "contributors": [
+    "wangheqiang530 (original project)"
+  ],
+  "homepage": "https://github.com/having5548/microsoft-rewards-docker#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/having5548/microsoft-rewards-docker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/having5548/microsoft-rewards-docker/issues"
   }
 }

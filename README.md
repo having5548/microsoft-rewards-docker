@@ -4,7 +4,7 @@
 >
 > | | |
 > | --- | --- |
-> | 上游原项目 | [wangheqiang530/microsoft-rewards-docker](https://github.com/wangheqiang530/microsoft-rewards-docker) |
+> | 二改来源 | 二改自一个 MIT 协议的第三方项目，原作者与许可证见 [MODIFIED.md](MODIFIED.md) / [LICENSE](LICENSE) |
 > | 本文档对应的二改版本 | **v1.9.0**（基线：上游 v1.8.6） |
 > | 二改维护者 | [having5548](https://github.com/having5548) |
 > | 改了什么 | 删除 Epic 领取、新增 QQ 机器人推送、新增「登录窗口自动获取 Cookie」、Cookie 粘贴容错 → 详见 **[MODIFIED.md](MODIFIED.md)** |
@@ -280,9 +280,8 @@ mkdir -p ms-rewards && cd ms-rewards
 ```yaml
 services:
   microsoft-rewards:
-    image: wangheqiang/microsoft-rewards-docker:latest
-    # 或者使用 GitHub 镜像：
-    # image: ghcr.io/wangheqiang530/microsoft-rewards-docker:latest
+    image: ghcr.io/having5548/microsoft-rewards-docker:v1.9.0
+    # 固定版本号比 latest 稳；想跟最新代码就用 1.9 / latest
     # 想在本地从源码构建时，改用下一行（需要本仓库源码）：
     # build: .
     container_name: ms-rewards
@@ -341,7 +340,7 @@ docker run -d \
   -e TZ=Asia/Shanghai \
   -e MSR_VISIBLE=1 \
   -e LOGIN_WINDOW_TIMEOUT_MIN=30 \
-  wangheqiang/microsoft-rewards-docker:latest
+  ghcr.io/having5548/microsoft-rewards-docker:v1.9.0
 ```
 
 ---
@@ -350,7 +349,7 @@ docker run -d \
 
 ```bash
 # 1. 克隆代码仓库
-git clone https://github.com/wangheqiang530/microsoft-rewards-docker.git
+git clone https://github.com/having5548/microsoft-rewards-docker.git
 cd microsoft-rewards-docker
 
 # 2. 安装依赖

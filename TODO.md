@@ -76,11 +76,11 @@
 | 账号 | 网页端显示名 | 网页端余额 | 同一 Refresh Token 的 DAPI 余额 |
 | --- | --- | ---: | ---: |
 | XDZ | （姓名已隐去） | 450 | 663 |
-| （邮箱已隐去） | （姓名已隐去） | 663 | 663 |
+| 主账号（邮箱已隐去） | （姓名已隐去） | 663 | 663 |
 | WHQ | （姓名已隐去） | 51723 | 51723 |
 
-- XDZ 的 DAPI Token 余额与 `（邮箱已隐去）` 完全一致，均为 663；与 XDZ 网页端余额相差 213。
-- 对 XDZ 调用 `signApp()` 返回 `{"points":0,"offerId":"Gamification_Sapphire_DailyCheckIn","isDuplicate":false,"balance":663}`，证明请求签到了 `（邮箱已隐去）`，不是 XDZ。
+- XDZ 的 DAPI Token 余额与主账号完全一致，均为 663；与 XDZ 网页端余额相差 213。
+- 对 XDZ 调用 `signApp()` 返回 `{"points":0,"offerId":"Gamification_Sapphire_DailyCheckIn","isDuplicate":false,"balance":663}`，证明请求签到了主账号，不是 XDZ。
 - 因此 XDZ 的 `必应应用连续打卡` 会一直停留在 0/7。修复不能只重试接口，必须在配置向导中为 XDZ 重新完成移动端授权，并绑定回 `（姓名已隐去）`。
 
 **根因 2（诊断性缺陷，确凿）**：`getAppCheckInStatus()` 只读取 `/earn` 旧数据，而当前权威状态在 `/dashboard`。
