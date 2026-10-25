@@ -1,0 +1,33 @@
+{
+  "name": "microsoft-rewards-docker",
+  "version": "1.9.0",
+  "description": "Microsoft Rewards 微软积分全能自动化助手 (Docker/WebUI版)，支持全任务自动化、现代化毛玻璃看板、代理配置与多渠道推送。",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "demo": "node src/demo.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "microsoft-rewards",
+    "docker",
+    "bing-rewards",
+    "nas",
+    "automation",
+    "webui"
+  ],
+  "author": "wangheqiang530",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "express": "^4.21.2",
+    "http-proxy": "^1.18.1",
+    "https-proxy-agent": "^7.0.6",
+    "node-cron": "^3.0.3",
+    "patchright-core": "^1.64.0",
+    "socks": "^2.8.10",
+    "socks-proxy-agent": "^8.0.5"
+  }
+}

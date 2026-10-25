@@ -1,0 +1,34 @@
+services:
+  microsoft-rewards:
+    image: ms-rewards:1.9.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 国内 NAS 从官方源装依赖容易超时；npmmirror 是淘宝的 npm 镜像。
+        # 在海外或者想用官方源时，把环境变量 NPM_REGISTRY 设为 https://registry.npmjs.org 即可。
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    container_name: ms-rewards
+    restart: unless-stopped
+    ports:
+      # 建议只映射到内网：改成 "192.168.1.10:5308:5308" 或配合反向代理使用。
+      # 这个端口等于「微软账号 + 浏览器」的完全控制权，务必先设置访问密码（见 DEPLOY-NAS.md）。
+      - "5308:5308"
+    environment:
+      - TZ=Asia/Shanghai
+      - PORT=5308
+      # 可见浏览器：供「微软账号登录窗口」通过 noVNC 内嵌小窗使用（0 = 关闭）
+      - MSR_VISIBLE=${MSR_VISIBLE:-1}
+      # 可见浏览器的 VNC 密码（不设则容器内 x11vnc 无密码，仅靠 5308 的 Basic 鉴权保护）
+      - NOVNC_PASSWORD=${NOVNC_PASSWORD:-}
+      - NOVNC_PORT=6080
+      - VNC_PORT=5900
+      # 登录窗口超过该分钟数未保存则自动关闭；设为 0 关闭保护
+      - LOGIN_WINDOW_TIMEOUT_MIN=${LOGIN_WINDOW_TIMEOUT_MIN:-30}
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

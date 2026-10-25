@@ -1,0 +1,11 @@
+# 统一换行符：源码与脚本一律 LF（容器内 /bin/bash 不能带 CRLF，否则 shebang 报 "no such file or directory"）。
+# Windows 上的编辑器如果写了 CRLF，提交时也会被规范成 LF。
+* text=auto eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf

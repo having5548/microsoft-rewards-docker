@@ -1,0 +1,100 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: '是否推送镜像（关闭则只做构建校验，不推送任何标签）'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      # 需要 contents: write 才能在打 tag 时创建 GitHub Release
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 发布策略（全自动，推上去就发）：
+      #   push main   -> 构建并推送 latest（latest 永远等于 main 最新代码）
+      #   push tag v* -> 构建并推送 版本号 + 主.次 + latest
+      #   手动触发     -> 由 publish 入参控制，关掉可只做构建校验
+      #
+      # 注意：这是二改仓库，镜像只发布到本仓库自己的 GHCR 命名空间
+      #       （ghcr.io/<owner>/<repo>）。原项目的 Docker Hub 仓库属于原作者，
+      #       这里不再向 Docker Hub 推送，避免误推到别人的命名空间。
+      - name: Determine publish mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.publish }}" != "true" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::仅构建校验，不推送任何镜像标签"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::将构建并发布镜像（linux/amd64 + linux/arm64）"
+          fi
+
+      - name: Set up QEMU
+        if: steps.mode.outputs.publish == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: steps.mode.outputs.publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        if: steps.mode.outputs.publish == 'true'
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push multi-arch Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ steps.mode.outputs.publish == 'true' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: ${{ steps.mode.outputs.publish == 'true' }}
+          # 仅构建校验时 meta 步骤被跳过、outputs.tags 为空，必须给一个本地占位 tag，
+          # 否则 docker/build-push-action 会因缺少 tag 直接报错。
+          tags: ${{ steps.mode.outputs.publish == 'true' && steps.meta.outputs.tags || 'ms-rewards:build-check' }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NPM_REGISTRY=https://registry.npmjs.org
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 建 GitHub Release
+      # 为什么必须有：客户端的「检查更新」读的是 releases/latest，
+      # 只推 tag 不建 Release 会让最新 Release 一直停在上一个版本，用户收不到升级提示。
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag \
+          || echo "::warning::Release 已存在或创建失败，跳过（不影响镜像发布）"

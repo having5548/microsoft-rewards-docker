@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microsoft Rewards 微软积分全能自动化控制台</title>
+  <link rel="icon" href="https://bing.com/th?id=OMR.icon-96.png&pid=Rewards" type="image/png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- WebGL2 全屏动态液态玻璃着色器背景画布 -->
+  <canvas id="bg-webgl-canvas" class="bg-webgl-canvas"></canvas>
+  <div class="app-container">
+    <!-- 顶部主控台导航栏 -->
+    <header class="header">
+      <div class="header-top-bar">
+        <div class="header-brand">
+          <div class="logo-icon">🎁</div>
+          <div class="title-wrap">
+            <h1 class="title">微软积分自动化控制台</h1>
+          </div>
+          <!-- 版本与状态复合胶囊 (结合更新检测与状态展示) -->
+          <div class="version-status-pill status-idle" id="version-status-pill" title="系统状态: 后台定时就绪中 | 点击检查版本更新">
+            <span class="status-dot"></span>
+            <span class="version-label" id="version-label">v1.8.6</span>
+            <span class="update-indicator" id="update-indicator" style="display: none;">
+              <span class="update-icon">🚀</span>
+              <span class="update-text" id="update-text">有更新</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="header-right-group">
+          <!-- 实时硬件监控 (可点击立即刷新) -->
+          <div class="sys-metrics-pill" id="sys-metrics-pill" title="立即刷新请点击">
+            <span class="metric-item"><span class="metric-icon">💻</span> <span id="metric-cpu">CPU --</span></span>
+            <span class="metric-sep">|</span>
+            <span class="metric-item"><span class="metric-icon">⚡</span> <span id="metric-mem">内存 --</span></span>
+            <span class="metric-sep">|</span>
+            <span class="metric-item"><span class="metric-icon">🌐</span> <span id="metric-ping">延时 --</span></span>
+            <span class="metric-refresh-icon">🔄</span>
+          </div>
+
+          <!-- 刷新倒计时 -->
+          <div class="refresh-countdown" id="daily-countdown-pill">
+            <span class="countdown-sandglass">⏳</span> 刷新倒计时: <strong id="countdown-timer">--:--:--</strong>
+          </div>
+
+          <!-- 功能按钮组 -->
+          <div class="header-actions">
+            <button id="btn-open-logs" class="btn btn-secondary btn-sm" title="查看全部历史日志（实时更新）">
+              <span>📜</span> 日志
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== 选项卡面板：微软积分 ===== -->
+    <div class="tab-panel active" id="tab-panel-ms">
+
+    <!-- 独立专属的多账号切换栏 (支持多账号自动换行，电脑端无需左右滑动) -->
+    <section class="account-selector-section" id="account-selector-section">
+      <div class="account-selector-bar" id="account-selector-bar">
+        <!-- 动态渲染多账号切换卡槽 -->
+      </div>
+    </section>
+
+    <!-- 微软积分操作工具条 (钉在账号栏下方，操作整齐对齐) -->
+    <section class="ms-toolbar" id="ms-toolbar">
+      <div class="ms-toolbar-scope-badge" id="ms-toolbar-scope">👥 全部账号汇总</div>
+      <div class="ms-toolbar-actions">
+        <button id="btn-sync-status" class="btn btn-secondary btn-sm" title="从微软官网同步今日真实任务完成度">
+          <span>🔄</span> 官网同步
+        </button>
+        <button id="btn-check-account" class="btn btn-secondary btn-sm" title="体检当前选中的账号">
+          <span>🔍</span> 账号体检
+        </button>
+        <button id="btn-guide" class="btn btn-secondary btn-sm" title="添加新账号配置向导">
+          <span>💡</span> 配置向导
+        </button>
+        <button id="btn-settings" class="btn btn-secondary btn-sm" title="全局参数设置">
+          <span>⚙️</span> 配置中心
+        </button>
+      </div>
+    </section>
+
+    <!-- 主仪表大屏 -->
+    <main class="main-content">
+      <!-- 4 大核心数据卡片 (平衡对称 4 列 / 2x2 网格) -->
+      <section class="hero-grid">
+        <div class="hero-card">
+          <div class="hero-label-row"><span class="hero-label">今日已增加积分</span></div>
+          <div class="hero-val hero-earned" id="stat-earned">+0</div>
+          <div class="hero-account-breakdown" id="earned-account-breakdown" aria-label="各账号今日积分明细"></div>
+          <div class="hero-desc">各项任务自动累计到账</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-label-row"><span class="hero-label">当前总积分余额</span></div>
+          <div class="hero-val" id="stat-balance">--</div>
+          <div class="hero-account-breakdown" id="balance-account-breakdown" aria-label="各账号当前积分明细"></div>
+          <div class="hero-desc">同步微软平台账户积分</div>
+        </div>
+        <div class="hero-card hero-claimable-card" id="hero-claimable-card" role="button" tabindex="0">
+          <div class="hero-label-row">
+            <span class="hero-label">待领取额外积分</span>
+            <span class="hero-claim-action" id="hero-claim-btn-text">立即领取 ➜</span>
+          </div>
+          <div class="hero-val hero-claimable" id="stat-claimable">0 分</div>
+          <div class="hero-account-breakdown" id="claimable-account-breakdown" aria-label="各账号待领取积分明细"></div>
+          <div class="hero-desc" id="stat-claimable-desc">点击一键领取平台额外赠分</div>
+        </div>
+        <div class="hero-card hero-streak-card">
+          <div class="hero-label-row">
+            <span class="hero-label">连续签到与印章</span>
+            <div class="hero-streak-stamps" id="stat-stamps-pill" title="连签奖励印章进度">
+              <span class="stamps-icon">🎖️</span>
+              <span class="stamps-text" id="stat-stamps">-- / 12</span>
+            </div>
+          </div>
+          <div class="hero-val hero-gold" id="stat-streak">-- 天</div>
+          <div class="stamps-grid-track" id="stamps-grid-track" title="赚取 12 个印章，赢取 1,000 奖励积分"></div>
+          <div class="stamps-account-list" id="stamps-account-list" aria-label="各账号印章进度"></div>
+          <div class="stamps-mini-bar" title="印章收集进度">
+            <div class="stamps-mini-fill" id="stat-stamps-fill" style="width: 0%;"></div>
+          </div>
+          <div class="hero-desc" id="stat-stamps-desc">等待官网同步印章进度</div>
+        </div>
+      </section>
+
+      <!-- 全账号概览矩阵 (在“全部账号汇总”视图下展示) -->
+      <section class="section-card accounts-overview-card" id="accounts-overview-card" style="display: none;">
+        <div class="section-header">
+          <div class="section-title">
+            <span>👥</span> 各账号运行状态与积分概览
+          </div>
+          <div class="accounts-header-actions">
+            <button id="btn-run" class="btn btn-primary btn-sm">
+              <span class="icon">▶️</span> 立即执行全部账号
+            </button>
+            <button id="btn-stop" class="btn btn-danger btn-sm" style="display: none;">
+              <span class="icon">⏹️</span> 停止执行
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-add-account-card">
+              <span>➕</span> 添加新账号
+            </button>
+          </div>
+        </div>
+        <div class="accounts-grid" id="accounts-grid">
+          <!-- 动态渲染各账号卡片 -->
+        </div>
+      </section>
+
+      <!-- 每日积分增长历史记录（仅在全部账号汇总视图展示） -->
+      <section class="section-card history-card" id="history-card-section">
+        <div class="section-header">
+          <div class="section-title">
+            <span>📈</span> <span id="history-chart-title">每日积分增长历史记录</span>
+          </div>
+          <div class="history-controls">
+            <div class="pill-group">
+              <button class="pill-btn active" data-days="7" id="btn-history-7">7 日</button>
+              <button class="pill-btn" data-days="30" id="btn-history-30">30 日</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="history-chart-wrap">
+          <div class="chart-container" id="history-chart-container">
+            <!-- 动态渲染柱状图条 -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 任务进度网格（仅在单账号模式下展示，汇总模式自动隐藏） -->
+      <section class="section-card" id="task-list-section" style="display: none;">
+        <div class="section-header">
+          <div class="section-title">
+            <span>📋</span> <span id="task-list-title">今日自动化任务进度清单</span>
+          </div>
+          <div class="task-header-actions">
+            <button id="btn-run-single-header" class="btn btn-primary btn-sm" style="display: none;">
+              <span>▶️</span> 立即执行当前账号
+            </button>
+            <button id="btn-toggle-account-header" class="btn btn-warning btn-sm" style="display: none;" title="暂停或启用当前账号，数据与凭据会保留">
+              <span>⏸️</span> 暂停账号
+            </button>
+            <button id="btn-stop-single-header" class="btn btn-danger btn-sm" style="display: none;">
+              <span>⏹️</span> 停止执行
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-sync-current-account" title="从微软官网同步当前账号今日真实任务进度">
+              <span>🔄</span> 刷新此账号进度
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-edit-current-account-header" title="修改此账号的备注名称或重新粘贴 Cookie">
+              <span>✏️</span> 编辑此账号
+            </button>
+            <div class="section-sub" id="last-update-time">
+              最后更新：--
+            </div>
+          </div>
+        </div>
+
+        <div class="task-grid" id="task-grid">
+          <!-- 动态渲染任务卡片 -->
+        </div>
+      </section>
+
+      <!-- 无头浏览器真实引擎监控卡片 (全新 v1.4.0) -->
+      <section class="section-card browser-monitor-card" id="browser-monitor-card">
+        <div class="section-header">
+          <div class="section-title">
+            <span>🖥️</span> 无头浏览器工作状态监控 (Playwright / Chromium 拟人引擎)
+          </div>
+          <div class="browser-header-actions">
+            <span class="browser-status-pill status-idle" id="browser-pill-status">
+              <span class="status-dot"></span> <span id="browser-pill-text">空闲休眠中 (0 MB)</span>
+            </span>
+            <button class="btn btn-secondary btn-sm" id="btn-trigger-single-search" title="单独搜索一次检验真实输入与积分变化，完全安全不触发冷冻">
+              <span>🔍</span> 单次测试搜索
+            </button>
+          </div>
+        </div>
+
+        <div class="browser-monitor-body">
+          <div class="browser-metric-row">
+            <div class="browser-metric-item">
+              <span class="browser-metric-lbl">当前活动账号</span>
+              <span class="browser-metric-val" id="bm-account">--</span>
+            </div>
+            <div class="browser-metric-item">
+              <span class="browser-metric-lbl">实时输入关键词</span>
+              <span class="browser-metric-val" id="bm-query" style="color:var(--accent);">--</span>
+            </div>
+            <div class="browser-metric-item">
+              <span class="browser-metric-lbl">本次补分轮次</span>
+              <span class="browser-metric-val" id="bm-round">0 / 0</span>
+            </div>
+            <div class="browser-metric-item">
+              <span class="browser-metric-lbl">距离下次搜索</span>
+              <span class="browser-metric-val" id="bm-countdown" style="color:#F59E0B;">--</span>
+            </div>
+            <div class="browser-metric-item">
+              <span class="browser-metric-lbl">容器内存占用</span>
+              <span class="browser-metric-val" id="bm-mem">0 MB</span>
+            </div>
+          </div>
+          <div class="browser-action-banner" id="bm-action-text">
+            浏览器当前处于空闲休眠状态，内存完全释放 (0 内存占用)
+          </div>
+        </div>
+      </section>
+
+      <!-- 下半部分：执行流记录 + 实时终端控制台 -->
+      <section class="bottom-grid">
+        <!-- 执行流水线时间轴 -->
+        <div class="section-card timeline-card">
+          <div class="section-header">
+            <div class="section-title"><span>⏱️</span> 最近打卡明细</div>
+            <span class="badge-mini">最近记录</span>
+          </div>
+          <div class="timeline" id="timeline-list">
+            <div class="timeline-empty">暂无执行流水记录</div>
+          </div>
+        </div>
+
+        <!-- 实时日志终端 -->
+        <div class="section-card terminal-card">
+          <div class="section-header">
+            <div class="section-title"><span>💻</span> 实时运行日志</div>
+            <div class="terminal-actions">
+              <label class="terminal-auto-scroll">
+                <input type="checkbox" id="chk-auto-scroll" checked> 自动滚屏
+              </label>
+              <button class="btn-text" id="btn-clear-logs" title="仅清空当前页面显示，后端日志与 data/app.log 仍保留">清空</button>
+            </div>
+          </div>
+          <div class="terminal-box" id="terminal-logs">
+            <!-- 实时日志内容 -->
+          </div>
+        </div>
+      </section>
+
+    </main>
+    </div><!-- /tab-panel-ms -->
+
+
+    <!-- 页脚 -->
+    <footer class="footer">
+      <p>Microsoft Rewards 微软积分全能自动化助手</p>
+    </footer>
+  </div>
+
+  <!-- 小白配置向导弹窗 (Modal) -->
+  <div class="modal-backdrop" id="guide-modal">
+    <div class="modal-box modal-guide">
+      <div class="modal-header">
+        <div class="modal-title"><span>💡</span> 极简配置向导（小白 1 分钟上手）</div>
+        <button class="btn-close" id="btn-close-guide">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="steps-nav">
+          <div class="step-nav-item active" data-step="1">1. 网络出口</div>
+          <div class="step-nav-item" data-step="2">2. 移动端授权</div>
+          <div class="step-nav-item" data-step="3">3. 网页端 Cookie</div>
+          <div class="step-nav-item" data-step="4">4. 完成</div>
+        </div>
+
+        <!-- Step 1 -->
+        <div class="step-content active" id="step-1">
+          <h3 class="step-title">第一步：先确认网络出口与代理</h3>
+          <p class="step-desc">Cookie 测试、Token 换取和后续体检都会立即访问微软。必须先保存代理策略，再绑定任何账号凭据。</p>
+          <div class="form-group">
+            <label class="form-label checkbox-label">
+              <input type="checkbox" id="guide-use-proxy"> 启用全局默认代理
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="form-label">全局默认代理地址 (HTTP / HTTPS / SOCKS5 / SOCKS5H)</label>
+            <input type="text" id="guide-proxy-url" class="form-input" placeholder="例如：http://192.168.1.5:7890 或 socks5h://127.0.0.1:1080">
+            <small class="form-hint">保存后仍可在配置中心添加更多代理节点。</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">这个账号的网络出口</label>
+            <select id="guide-account-proxy-mode" class="form-select">
+              <option value="direct" selected>不使用代理（直连）</option>
+              <option value="inherit">跟随全局默认设置</option>
+              <option value="proxy">使用指定已有代理</option>
+            </select>
+          </div>
+          <div class="form-group" id="guide-account-proxy-node-group" style="display: none;">
+            <label class="form-label">指定代理节点</label>
+            <select id="guide-account-proxy-id" class="form-select"></select>
+          </div>
+          <small class="form-hint" id="guide-account-proxy-hint"></small>
+          <div class="form-group" style="margin-top: 12px;">
+            <label class="form-label checkbox-label">
+              <input type="checkbox" id="guide-lock-region" checked> 开启国区保护（非大陆出口 IP 自动停止打卡）
+            </label>
+          </div>
+          <button type="button" id="guide-btn-test-proxy" class="btn btn-secondary">一键检测出口 IP 与地区</button>
+          <div id="guide-proxy-result" class="hint-msg"></div>
+          <div class="step-footer">
+            <button type="button" class="btn btn-primary" id="guide-btn-save-network">保存出口并继续 ➜</button>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step-content" id="step-2">
+          <div class="form-group" style="background: var(--card-inner); padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 13px; font-weight: 700; color: var(--accent);">👤 新账号基础信息</span>
+              <span class="badge-mini" style="background: rgba(16,185,129,0.15); color: #34D399;">自动新建独立选项卡</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+              <div>
+                <label style="font-size: 11.5px; color: var(--text-sub);">账号备注名称</label>
+                <input type="text" id="guide-account-name" class="form-input" placeholder="例如：我的小号、副号、家人号" value="新账号">
+              </div>
+              <div>
+                <label style="font-size: 11.5px; color: var(--text-sub);">排列序号</label>
+                <input type="number" id="guide-account-order" class="form-input" min="1" max="99" value="2">
+              </div>
+            </div>
+          </div>
+          <div id="guide-token-network-summary" class="guide-network-summary"></div>
+          <h3 class="step-title">第二步：获取移动端与 App 签到授权 (OAuth Token)</h3>
+          <p class="step-desc">该授权用于自动完成「每日移动端签到」与「新闻资讯阅读（30分）」，一次绑定长期自动续期，无需反复操作。</p>
+          <div class="step-action-box">
+            <p>1. 点击下方按钮，将在新窗口打开微软官方登录授权页：</p>
+            <a href="https://login.live.com/oauth20_authorize.srf?client_id=0000000040170455&response_type=code&scope=service::prod.rewardsplatform.microsoft.com::MBI_SSL&redirect_uri=https://login.live.com/oauth20_desktop.srf" target="_blank" class="btn btn-primary btn-sm">
+              🔑 打开微软官方登录授权页
+            </a>
+          </div>
+          <div class="step-action-box" style="margin-top: 14px;">
+            <p>2. 登录并同意后，网页会跳转到一个带有 <code>code=...</code> 的空白页面。请复制地址栏的完整 URL 并粘贴在下方：</p>
+            <input type="text" id="guide-code-input" class="form-input" placeholder="例如：https://login.live.com/oauth20_desktop.srf?code=M.C508_...">
+            <button id="guide-btn-exchange" class="btn btn-primary" style="margin-top: 8px;">一键换取并保存 Token</button>
+            <div id="guide-token-result" class="hint-msg"></div>
+          </div>
+          <div class="step-footer">
+            <button class="btn btn-secondary" onclick="switchStep(1)">上一步</button>
+            <button class="btn btn-primary" onclick="switchStep(3)">下一步：配置网页 Cookie ➜</button>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step-content" id="step-3">
+          <div id="guide-cookie-network-summary" class="guide-network-summary"></div>
+          <h3 class="step-title">第三步：配置必应网页端 Cookie</h3>
+          <p class="step-desc">该 Cookie 用于「必应 PC 搜索」、「每日活动集 Daily Set」与「桌面专享任务」。</p>
+          <div class="step-action-box">
+            <p>在电脑浏览器中登录 <a href="https://rewards.bing.com/dashboard" target="_blank" style="color:#38BDF8;">rewards.bing.com/dashboard</a>，按 <code>F12</code> 打开控制台，在【网络/Network】或【应用程序/Application】中复制 Cookie 字符串，粘贴在下方；也可以点下面的按钮，直接在容器内的浏览器里登录，登录后自动把 Cookie 取回来：</p>
+            <textarea id="guide-cookie-input" class="form-textarea" rows="4" placeholder="_U=xxx; MUID=yyy; RPSSecAuth=zzz; ...（完整 Cookie 串）"></textarea>
+            <div class="cookie-actions">
+              <button id="guide-btn-test-cookie" class="btn btn-secondary">测试 Cookie 有效性</button>
+              <button type="button" class="btn btn-primary btn-cookie-login" data-target="guide-cookie-input" data-scope="guide">🌐 打开登录窗口自动获取 Cookie</button>
+            </div>
+            <small class="form-hint cookie-hint">必须是从 rewards.bing.com/dashboard 复制的<strong>完整</strong> Cookie 串（形如 <code>名=值; 名=值</code>）。只填单个值不会生效；缺少 <code>_U</code> 时服务端会自动从 <code>SRCHUID</code>/<code>_EDGE_S</code> 里补。</small>
+            <div id="guide-cookie-result" class="hint-msg"></div>
+          </div>
+
+          <div class="form-group" style="background: var(--card-inner); padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border-color); margin-top: 14px;">
+            <label class="form-label">🕒 每天运行时间档位</label>
+            <div class="run-hour-grid" id="guide-run-hours"></div>
+            <small class="form-hint" style="margin-top: 8px;">可勾选多个档位作为备用。每档为 1 小时，启动延迟固定为 0-10 分钟；系统每天只在最早可用的已勾选档位执行一次。</small>
+          </div>
+
+          <div class="step-footer">
+            <button class="btn btn-secondary" onclick="switchStep(2)">上一步</button>
+            <button class="btn btn-primary" onclick="saveGuideSettings()">保存并进入主界面 ➜</button>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="step-content" id="step-4">
+          <h3 class="step-title" style="color: #34D399;">🎉 配置完成！</h3>
+          <p class="step-desc">您已完成核心配置。现在可以点击主界面的「立即执行」测试一次完整打卡，系统也会按照设定的定时周期全天候为您自动巡检。</p>
+          <div class="step-footer">
+            <button class="btn btn-primary" id="btn-finish-guide">立即开始使用</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 详细配置中心弹窗 (Modal) -->
+  <div class="modal-backdrop" id="settings-modal">
+    <div class="modal-box modal-settings">
+      <div class="modal-header">
+        <div class="modal-title"><span>⚙️</span> 全局配置中心</div>
+        <button class="btn-close" id="btn-close-settings">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="tabs-nav">
+          <button class="tab-btn active" data-tab="tab-account">👤 账号与凭证</button>
+          <button class="tab-btn" data-tab="tab-network">🌐 网络与代理</button>
+          <button class="tab-btn" data-tab="tab-tasks">⚡ 任务与防风控</button>
+          <button class="tab-btn" data-tab="tab-schedule">⏱️ 定时巡检</button>
+          <button class="tab-btn" data-tab="tab-notify">🔔 消息推送</button>
+          <button class="tab-btn" data-tab="tab-appearance">✨ 液态视觉与背景</button>
+        </div>
+
+        <!-- Tab: 多账号配置与管理 -->
+        <div class="tab-content active" id="tab-account">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="flex: 1; margin-right: 12px;">
+              <label class="form-label">切换当前编辑的账号</label>
+              <select id="cfg-account-select" class="form-select">
+                <!-- 动态填充各账号 -->
+              </select>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 22px;">
+              <button class="btn btn-secondary btn-sm" id="btn-modal-add-acc">➕ 新建账号</button>
+              <button class="btn btn-danger btn-sm" id="btn-modal-del-acc">🗑️ 删除账号</button>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label class="form-label">账号备注名称</label>
+              <input type="text" id="cfg-account-name" class="form-input" placeholder="例如：我的主号、小号、家人号">
+            </div>
+            <div class="form-group">
+              <label class="form-label">排列序号</label>
+              <input type="number" id="cfg-account-order" class="form-input" min="1" max="99" value="1">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label checkbox-label">
+              <input type="checkbox" id="cfg-account-enabled" checked> 启用该账号自动打卡与巡检
+            </label>
+          </div>
+
+          <div class="account-proxy-panel">
+            <div class="proxy-section-title">
+              <div>
+                <span>🌐 该账号的网络出口</span>
+                <small>每个账号可独立选择代理，避免多账号共用同一出口。</small>
+              </div>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">代理策略</label>
+                <select id="cfg-account-proxy-mode" class="form-select">
+                  <option value="direct" selected>不使用代理（直连）</option>
+                  <option value="inherit">跟随全局默认设置</option>
+                  <option value="proxy">使用指定代理</option>
+                </select>
+              </div>
+              <div class="form-group" id="cfg-account-proxy-node-group" style="display: none;">
+                <label class="form-label">指定代理节点</label>
+                <select id="cfg-account-proxy-id" class="form-select"></select>
+              </div>
+            </div>
+            <small class="form-hint" id="cfg-account-proxy-hint"></small>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">必应网页端 Cookie (针对当前选中的账号)</label>
+            <div class="input-with-btn">
+              <div class="secret-field">
+                <input type="password" id="cfg-cookie" class="form-input" autocomplete="off" spellcheck="false" placeholder="_U=xxx; MUID=yyy; RPSSecAuth=zzz; ...（完整 Cookie 串）">
+                <button type="button" class="secret-toggle" data-target="cfg-cookie" title="显示 / 隐藏 Cookie">👁</button>
+              </div>
+              <button type="button" id="btn-test-modal-cookie" class="btn btn-secondary btn-sm" title="测试该 Cookie 有效性与余额">测试有效性</button>
+              <button type="button" id="btn-clear-modal-cookie" class="btn btn-danger-soft btn-sm" title="清空该账号保存的 Cookie">清空</button>
+            </div>
+            <div class="cookie-actions">
+              <button type="button" class="btn btn-primary btn-sm btn-cookie-login" data-target="cfg-cookie" data-scope="settings">🌐 打开登录窗口自动获取 Cookie</button>
+            </div>
+            <small class="form-hint cookie-hint">必须是从 rewards.bing.com/dashboard 复制的<strong>完整</strong> Cookie 串（形如 <code>名=值; 名=值</code>）。只填单个值不会生效；缺少 <code>_U</code> 时服务端会自动从 <code>SRCHUID</code>/<code>_EDGE_S</code> 里补。</small>
+            <small class="form-hint" id="cfg-cookie-hint">PC 搜索、每日活动集与桌面任务必备；内容默认隐藏，不会明文展示</small>
+            <div id="cfg-cookie-test-result" style="margin-top: 6px; font-size: 12px;"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">移动端授权码链接 / Code (针对当前选中的账号)</label>
+            <div class="input-with-btn">
+              <div class="secret-field">
+                <input type="password" id="cfg-authcode" class="form-input" autocomplete="off" spellcheck="false" placeholder="粘贴包含 code= 的完整跳转链接">
+                <button type="button" class="secret-toggle" data-target="cfg-authcode" title="显示 / 隐藏授权码">👁</button>
+              </div>
+              <button type="button" id="btn-exchange-token" class="btn btn-secondary btn-sm">换取 Token</button>
+              <button type="button" id="btn-clear-modal-auth" class="btn btn-danger-soft btn-sm" title="清空该账号保存的授权码与 Token">清空凭据</button>
+            </div>
+            <div id="cfg-auth-test-result" style="margin-top: 6px; font-size: 12px;"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">当前 Refresh Token</label>
+            <input type="password" id="cfg-refresh-token" class="form-input" readonly placeholder="未获取">
+          </div>
+
+          <div class="form-group" style="background: var(--card-inner); padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border-color); margin-top: 10px;">
+            <label class="form-label">🕒 每天运行时间档位</label>
+            <div class="run-hour-grid" id="cfg-run-hours"></div>
+            <small class="form-hint" id="cfg-account-slot-hint" style="margin-top: 8px;">每档为 1 小时，启动延迟 0-10 分钟；可多选作为备用，每天只在最早可用的已勾选档位执行一次。</small>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 14px;">
+            <button id="btn-test-account" class="btn btn-secondary">🔍 测试当前账号</button>
+          </div>
+          <small class="form-hint">账号测试会使用已保存的凭据与代理出口，并显示实际访问 IP。</small>
+          <div id="test-account-result" class="hint-msg"></div>
+        </div>
+
+        <!-- Tab: 网络与代理 -->
+        <div class="tab-content" id="tab-network">
+          <div class="proxy-section-head">
+            <div>
+              <div class="proxy-section-title">代理节点</div>
+              <small class="form-hint">可保存多套 HTTP / HTTPS / SOCKS5 代理，并为每个账号单独选择。</small>
+            </div>
+            <button type="button" id="btn-add-proxy" class="btn btn-secondary btn-sm">＋ 添加代理</button>
+          </div>
+          <div id="proxy-list" class="proxy-list"></div>
+
+          <div class="proxy-policy-panel">
+            <div class="form-group">
+              <label class="form-label">全局网络策略</label>
+              <div class="network-mode-options">
+                <label class="network-mode-option">
+                  <input type="radio" name="cfg-global-proxy-mode" id="cfg-global-direct" value="direct" checked>
+                  <span>
+                    <strong>直连</strong>
+                    <small>不使用任何代理，直接使用容器默认网络出口。</small>
+                  </span>
+                </label>
+                <label class="network-mode-option">
+                  <input type="radio" name="cfg-global-proxy-mode" id="cfg-use-proxy" value="proxy">
+                  <span>
+                    <strong>启用全局默认代理</strong>
+                    <small>仅影响选择「跟随全局默认设置」的账号。</small>
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">全局默认代理节点</label>
+              <select id="cfg-default-proxy" class="form-select"></select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label checkbox-label">
+              <input type="checkbox" id="cfg-lock-region"> 锁定中国大陆 IP（非 CN 出口自动停止，防封号）
+            </label>
+          </div>
+          <button type="button" id="btn-test-default-network" class="btn btn-secondary">测试全局默认出口</button>
+          <div id="test-default-proxy-result" class="hint-msg"></div>
+        </div>
+
+        <!-- Tab: 任务与防风控 -->
+        <div class="tab-content" id="tab-tasks">
+          <div class="checkbox-grid">
+            <label class="checkbox-label"><input type="checkbox" id="cfg-task-sign"> 移动端签到</label>
+            <label class="checkbox-label"><input type="checkbox" id="cfg-task-read"> 新闻资讯自动阅读 (10篇)</label>
+            <label class="checkbox-label"><input type="checkbox" id="cfg-task-search"> 必应 PC 搜索任务 (会员 15 / 银牌 30 / 金牌 60 分)</label>
+            <label class="checkbox-label"><input type="checkbox" id="cfg-task-promos"> 活动卡片与 Quiz 自动答题</label>
+            <label class="checkbox-label"><input type="checkbox" id="cfg-task-dailyset"> 每日连续活动集 (Daily Set)</label>
+            <label class="checkbox-label"><input type="checkbox" id="cfg-task-desktop"> 桌面端专属每周打孔卡 (70分/周)</label>
+            <label class="checkbox-label"><input type="checkbox" id="cfg-task-keep"> 全部完成后，手动重跑仍完整执行（定时任务每账号每天只排一次）</label>
+          </div>
+          <hr class="divider">
+          <div class="form-group">
+            <label class="form-label">🎛️ 搜索节奏设置（全局生效，所有账号共用）</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="font-size:11.5px; color:var(--text-sub); display:block; margin-bottom:4px;">每次搜索基础间隔（秒）</label>
+                <input type="number" id="cfg-search-interval" class="form-input" min="60" max="120" step="5" value="60">
+              </div>
+              <div>
+                <label style="font-size:11.5px; color:var(--text-sub); display:block; margin-bottom:4px;">每次随机浮动（秒，只会延后）</label>
+                <input type="number" id="cfg-search-jitter" class="form-input" min="30" max="60" step="5" value="60">
+              </div>
+            </div>
+            <div style="margin-top:10px;">
+              <label style="font-size:11.5px; color:var(--text-sub); display:block; margin-bottom:4px;">停滞保护：连续多少次搜索没有加分就主动停手</label>
+              <input type="number" id="cfg-search-stagnant" class="form-input" min="1" max="5" step="1" value="5">
+              <small class="form-hint">搜索额度已到顶或账号被限流时，继续搜只会白白增加风控暴露面。达到该次数即主动结束本轮搜索，未打满的额度留到下次执行。</small>
+            </div>
+            <div style="margin-top:10px;">
+              <label style="font-size:11.5px; color:var(--text-sub); display:block; margin-bottom:4px;">🛡️ 多账号连续执行安全隔离间隔（秒）</label>
+              <input type="number" id="cfg-account-gap" class="form-input" min="15" max="1800" step="15" value="180">
+              <small class="form-hint">批量或连续执行不同账号时的强制等待时间（默认 180 秒即 3 分钟，执行时带有随机浮动），防止同一 IP 短时间内频繁切换账号触发微软风控。</small>
+            </div>
+            <small class="form-hint" id="cfg-search-rhythm-hint">--</small>
+          </div>
+          <input type="hidden" id="cfg-ui-theme" value="dark">
+          <div class="form-group">
+            <label class="form-label">PC 搜索执行引擎</label>
+            <select id="cfg-search-engine" class="form-select">
+              <option value="browser">Playwright / Chromium 拟人浏览器引擎 (强烈推荐：真实键盘打字/滚轮，抗封锁最强)</option>
+              <option value="http">纯 HTTP 极速协议模式 (轻量低开销)</option>
+            </select>
+            <small class="form-hint">无头浏览器仅在搜索期间启动，执行完毕立即彻底释放内存</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">搜索词库来源</label>
+            <div class="input-with-btn">
+              <select id="cfg-search-api" class="form-select">
+                <option value="baidu.official">百度官方实时热搜榜 (直连 top.baidu.com，推荐)</option>
+                <option value="offline">本地离线智能词库 (52条生活高频词，零网络依赖)</option>
+                <option value="hot.cnxiaobai.com">DailyHotApi 聚合热搜榜 (cnxiaobai)</option>
+                <option value="hot.nntool.cc">今日热榜聚合榜单 (nntool)</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" id="btn-test-search-api">🔍 测试获取词库</button>
+            </div>
+            <small class="form-hint">点击按钮可实时检测当前词库是否畅通并查看获取到的词条明细</small>
+          </div>
+        </div>
+
+        <!-- Tab: 定时巡检 -->
+        <div class="tab-content" id="tab-schedule">
+          <div class="form-group">
+            <label class="form-label checkbox-label">
+              <input type="checkbox" id="cfg-sched-enabled"> 开启后台自动定时巡检
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cron 调度表达式</label>
+            <input type="text" id="cfg-sched-cron" class="form-input" value="*/25 * * * *">
+            <small class="form-hint">常用预设：<code>*/25 * * * *</code> (每25分钟检测一次) | <code>0 8,12,18 * * *</code> (每天8点、12点、18点)</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">🔒 Web 访问密码（留空则不启用认证）</label>
+            <input type="password" id="cfg-auth-password" class="form-input" autocomplete="new-password" placeholder="建议设置，避免账号 Cookie 被他人读取">
+            <small class="form-hint">设置后访问控制台需要输入此密码（HTTP Basic 认证）。保存并刷新页面后生效。页面会明文返回账号凭据，请勿在公网无密码暴露此端口。</small>
+          </div>
+        </div>
+
+        <!-- Tab: 消息推送 -->
+        <div class="tab-content" id="tab-notify">
+          <div class="form-group">
+            <label class="form-label">企业微信机器人 Webhook Key 或完整链接</label>
+            <div class="input-with-btn">
+              <input type="text" id="cfg-notify-wework" class="form-input" placeholder="例如：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx">
+              <button class="btn btn-secondary btn-sm" onclick="testNotifyChannel('wework')">测试</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">钉钉机器人 Access Token 或完整链接</label>
+            <div class="input-with-btn">
+              <input type="text" id="cfg-notify-dingding" class="form-input" placeholder="access_token（需设置关键词包含 #）">
+              <button class="btn btn-secondary btn-sm" onclick="testNotifyChannel('dingding')">测试</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">飞书机器人 Webhook 链接或 Key</label>
+            <div class="input-with-btn">
+              <input type="text" id="cfg-notify-feishu" class="form-input" placeholder="例如：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx">
+              <button class="btn btn-secondary btn-sm" onclick="testNotifyChannel('feishu')">测试</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Bark 设备 Key 或链接</label>
+            <div class="input-with-btn">
+              <input type="text" id="cfg-notify-bark" class="form-input" placeholder="例如：xxxxxxxxxxxxxxxxx">
+              <button class="btn btn-secondary btn-sm" onclick="testNotifyChannel('bark')">测试</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">PushMe 设备 Key</label>
+            <div class="input-with-btn">
+              <input type="text" id="cfg-notify-pushme" class="form-input" placeholder="push.i-i.me 的 push_key">
+              <button class="btn btn-secondary btn-sm" onclick="testNotifyChannel('pushme')">测试</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telegram Bot (TG 机器人推送)</label>
+            <div style="display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 8px;">
+              <input type="text" id="cfg-notify-tg-token" class="form-input" placeholder="Bot Token (例如 123456:ABC...)">
+              <input type="text" id="cfg-notify-tg-chat" class="form-input" placeholder="Chat ID (例如 123456789)">
+              <button class="btn btn-secondary btn-sm" onclick="testNotifyChannel('telegram')">测试</button>
+            </div>
+            <small class="form-hint">若部署在国内环境，启用网络代理后会自动通过代理访问 Telegram API</small>
+          </div>
+          <div class="form-group">
+            <div class="notify-title-row">
+              <label class="form-label" style="margin-bottom: 0;">QQ 机器人 (QQ 开放平台官方接口)</label>
+              <button class="btn btn-secondary btn-sm" onclick="testNotifyChannel('qqbot')">测试</button>
+            </div>
+            <div class="notify-grid-2">
+              <input type="text" id="cfg-notify-qq-appid" class="form-input" placeholder="AppID（机器人资料页的 AppID）">
+              <div class="secret-field">
+                <input type="password" id="cfg-notify-qq-secret" class="form-input" autocomplete="off" spellcheck="false" placeholder="AppSecret（机器人密钥）">
+                <button type="button" class="secret-toggle" data-target="cfg-notify-qq-secret" title="显示 / 隐藏 AppSecret">👁</button>
+              </div>
+            </div>
+            <div class="notify-grid-2" style="margin-top: 8px;">
+              <select id="cfg-notify-qq-type" class="form-input">
+                <option value="group" selected>群聊</option>
+                <option value="user">私聊</option>
+                <option value="channel">频道</option>
+              </select>
+              <input type="text" id="cfg-notify-qq-openid" class="form-input" placeholder="OpenID（群聊填 group_openid，私聊填 user_openid）">
+            </div>
+            <small class="form-hint">发送目标选「群聊」填 <code>group_openid</code>，选「私聊」填 <code>user_openid</code>，选「频道」填 <code>channel_id</code>；AppID 与 AppSecret 在 QQ 开放平台机器人管理中获取。</small>
+          </div>
+        </div>
+
+        <!-- Tab: 液态视觉与背景 -->
+        <div class="tab-content" id="tab-appearance">
+          <div class="visual-settings-section">
+            <div class="visual-section-title">
+              <span>💎</span> iOS 液态玻璃质感 (Liquid Glass)
+            </div>
+            <div class="visual-grid">
+              <div class="form-group">
+                <div class="range-header">
+                  <label class="form-label">卡片玻璃透明度</label>
+                  <span class="range-val" id="val-card-opacity">65%</span>
+                </div>
+                <input type="range" id="cfg-card-opacity" class="form-range" min="20" max="95" value="65">
+                <small class="form-hint">越低越通透，背景流光与折射越明显；默认 65%</small>
+              </div>
+
+              <div class="form-group">
+                <div class="range-header">
+                  <label class="form-label">背景磨砂模糊 (Blur)</label>
+                  <span class="range-val" id="val-card-blur">20px</span>
+                </div>
+                <input type="range" id="cfg-card-blur" class="form-range" min="0" max="40" value="20">
+                <small class="form-hint">模拟毛玻璃磨砂厚度；默认 20px</small>
+              </div>
+
+              <div class="form-group">
+                <div class="range-header">
+                  <label class="form-label">边缘高光强度 (Specular Rim)</label>
+                  <span class="range-val" id="val-border-glow">100%</span>
+                </div>
+                <input type="range" id="cfg-border-glow" class="form-range" min="0" max="200" value="100">
+                <small class="form-hint">卡片轮廓边缘光泽与锐利感；默认 100%</small>
+              </div>
+
+              <div class="form-group">
+                <div class="range-header">
+                  <label class="form-label">液态流光强度 (Liquid Sheen)</label>
+                  <span class="range-val" id="val-liquid-sheen">100%</span>
+                </div>
+                <input type="range" id="cfg-liquid-sheen" class="form-range" min="0" max="200" value="100">
+                <small class="form-hint">卡片表面内部漫射高光与折射流光；默认 100%</small>
+              </div>
+
+              <div class="form-group">
+                <div class="range-header">
+                  <label class="form-label">边框高光弧长</label>
+                  <span class="range-val" id="val-rim-spread">34°</span>
+                </div>
+                <input type="range" id="cfg-rim-spread" class="form-range" min="18" max="58" step="1" value="34">
+                <small class="form-hint">高光只沿卡片边框绕行，弧长越短越接近真实玻璃棱边</small>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">交互联动开关</label>
+                <div class="checkbox-grid" style="margin-top: 6px;">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="cfg-mouse-follow" checked> 开启卡片轮廓高光跟随鼠标
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="cfg-card-tilt" checked> 开启卡片悬停 3D 微倾斜透视
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <hr class="divider">
+
+          <div class="visual-settings-section">
+            <div class="visual-section-title">
+              <span>🌌</span> WebGL2 动态交互背景
+            </div>
+            <div class="checkbox-grid" style="margin-bottom: 12px;">
+              <label class="checkbox-label">
+                <input type="checkbox" id="cfg-bg-enabled" checked> 启用 WebGL2 动态液态背景 (低能耗 60FPS)
+              </label>
+            </div>
+
+            <div class="visual-grid">
+              <div class="form-group">
+                <label class="form-label">背景动画风格</label>
+                <select id="cfg-bg-style" class="form-select">
+                  <option value="silk">✨ 丝绸流光 (Silk Folds)</option>
+                  <option value="grainient">🌅 颗粒渐变 (Grainient Flow)</option>
+                  <option value="veil">🌑 暗色流体面纱 (Dark Veil)</option>
+                  <option value="aurora">🌌 柔光极光 (Soft Aurora)</option>
+                  <option value="prism">💎 棱镜光幕 (Prism Curtain)</option>
+                </select>
+                <small class="form-hint">每种风格使用独立 WebGL2 着色模型与运动节奏</small>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">背景配色方案</label>
+                <select id="cfg-color-theme" class="form-select">
+                  <option value="aurora">🔴 苹果极光 (玫瑰红 / 青绿 / 靛蓝)</option>
+                  <option value="sunset">🟠 暮光晚霞 (珊瑚红 / 琥珀 / 紫罗兰)</option>
+                  <option value="ocean">🔵 深邃海洋 (海蓝 / 青蓝 / 宝蓝)</option>
+                  <option value="emerald">🟢 青翠森林 (翡翠绿 / 青柠 / 深绿)</option>
+                  <option value="monochrome">⚪ 钛金质感 (银灰 / 石板灰 / 雾白)</option>
+                </select>
+                <small class="form-hint">全局卡片轮廓与背景着色器色调实时同步联动</small>
+              </div>
+
+              <div class="form-group">
+                <div class="range-header">
+                  <label class="form-label">背景动画速度</label>
+                  <span class="range-val" id="val-bg-speed">1.0x</span>
+                </div>
+                <input type="range" id="cfg-bg-speed" class="form-range" min="0.2" max="3.0" step="0.1" value="1.0">
+                <small class="form-hint">调节背景着色器演化速度；默认 1.0x</small>
+              </div>
+
+              <div class="form-group">
+                <div class="range-header">
+                  <label class="form-label">磨砂噪点质感 (Film Grain)</label>
+                  <span class="range-val" id="val-bg-noise">25%</span>
+                </div>
+                <input type="range" id="cfg-bg-noise" class="form-range" min="0" max="100" value="25">
+                <small class="form-hint">加入有机微噪点颗粒，增强深色磨砂与液态质感；默认 25%</small>
+              </div>
+
+              <div class="form-group">
+                <div class="range-header">
+                  <label class="form-label">鼠标交互扰动响应</label>
+                  <span class="range-val" id="val-mouse-turb">100%</span>
+                </div>
+                <input type="range" id="cfg-mouse-turb" class="form-range" min="0" max="200" value="100">
+                <small class="form-hint">鼠标掠过背景流体时的涡流与引力扰动强度；默认 100%</small>
+              </div>
+            </div>
+          </div>
+
+          <hr class="divider">
+
+          <div class="visual-settings-section">
+            <div class="visual-section-title">
+              <span>🎨</span> 快捷主题预设与重置
+            </div>
+            <div class="preset-btn-group">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-preset-ios">💎 原生 iOS 冰晶</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-preset-aurora">🌌 极光幻夜</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-preset-ocean">🌊 深海波流</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-preset-titanium">🖤 钛金极暗</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-visual" style="margin-left: auto;">🔄 恢复默认效果</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="settings-save-status" id="settings-save-status" aria-live="polite"></div>
+        <button class="btn btn-secondary" id="btn-cancel-settings">取消</button>
+        <button class="btn btn-primary" id="btn-save-settings">保存所有配置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 账号登录诊断弹窗 (Modal) -->
+  <div class="modal-backdrop" id="diag-modal">
+    <div class="modal-box modal-diag">
+      <div class="modal-header">
+        <div class="modal-title"><span>🔍</span> 微软账号在 Docker 中的登录状态体检</div>
+        <button class="btn-close" id="btn-close-diag">&times;</button>
+      </div>
+      <div class="modal-body" id="diag-modal-body">
+        <div class="diag-scope">
+          <span class="diag-scope-label">体检范围</span>
+          <div class="diag-scope-group" id="diag-scope-group">
+            <button type="button" class="diag-scope-btn active" data-mode="single">单个账号</button>
+            <button type="button" class="diag-scope-btn" data-mode="all">全部账号</button>
+          </div>
+          <select id="diag-account-select" class="form-select diag-account-select"></select>
+        </div>
+        <div class="diag-loading" id="diag-loading" style="text-align: center; padding: 30px 0;">
+          <div class="diag-spinner"></div>
+          <p id="diag-loading-text" style="margin-top: 14px; color: var(--text-sub);">正在全面请求微软官方接口检测当前 Docker 中的登录态...</p>
+        </div>
+        <div class="diag-content" id="diag-content" style="display: none;">
+          <!-- 全部账号体检结果列表 -->
+          <div class="diag-all-summary" id="diag-all-summary" style="display: none;"></div>
+          <div class="diag-all-list" id="diag-all-list" style="display: none;"></div>
+
+          <!-- 诊断综合状态 Header -->
+          <div class="diag-banner" id="diag-banner">
+            <div class="diag-banner-icon" id="diag-banner-icon">🟢</div>
+            <div>
+              <h3 class="diag-banner-title" id="diag-banner-title">账号登录完全正常</h3>
+              <p class="diag-banner-sub" id="diag-banner-sub">当前 Docker 环境已成功连接微软服务，可顺利打卡全部任务。</p>
+            </div>
+          </div>
+
+          <!-- 3 个检测维度卡片 -->
+          <div class="diag-cards" id="diag-cards">
+            <!-- 1. 网页端 Cookie 状态 -->
+            <div class="diag-item-card" id="diag-card-cookie">
+              <div class="diag-item-header">
+                <span class="diag-item-icon">💻</span>
+                <span class="diag-item-name">必应网页端 Cookie</span>
+                <span class="diag-status-pill" id="diag-pill-cookie">检测中</span>
+              </div>
+              <div class="diag-item-body" id="diag-detail-cookie">
+                --
+              </div>
+            </div>
+
+            <!-- 2. 移动端 OAuth Token 状态 -->
+            <div class="diag-item-card" id="diag-card-token">
+              <div class="diag-item-header">
+                <span class="diag-item-icon">📱</span>
+                <span class="diag-item-name">移动端 App 授权 (DAPI)</span>
+                <span class="diag-status-pill" id="diag-pill-token">检测中</span>
+              </div>
+              <div class="diag-item-body" id="diag-detail-token">
+                --
+              </div>
+            </div>
+
+            <!-- 3. Docker 出口网络与 IP 地区 -->
+            <div class="diag-item-card" id="diag-card-network">
+              <div class="diag-item-header">
+                <span class="diag-item-icon">🌐</span>
+                <span class="diag-item-name">容器出口 IP 与国区防风控</span>
+                <span class="diag-status-pill" id="diag-pill-network">检测中</span>
+              </div>
+              <div class="diag-item-body" id="diag-detail-network">
+                --
+              </div>
+            </div>
+          </div>
+
+          <!-- 账户总览明细 -->
+          <div class="diag-summary-box">
+            <div class="diag-summary-item">
+              <span class="diag-summary-label">微软平台实时总积分</span>
+              <span class="diag-summary-val" id="diag-val-balance">--</span>
+            </div>
+            <div class="diag-summary-item">
+              <span class="diag-summary-label">PC 搜索配额状态</span>
+              <span class="diag-summary-val" id="diag-val-search">--</span>
+            </div>
+            <div class="diag-summary-item">
+              <span class="diag-summary-label">新闻阅读任务进度</span>
+              <span class="diag-summary-val" id="diag-val-read">--</span>
+            </div>
+          </div>
+
+          <!-- 优化建议提示区 -->
+          <div class="diag-tips" id="diag-tips"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-retest-diag">🔄 重新检测</button>
+        <button class="btn btn-primary" id="btn-confirm-diag">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 快速添加 / 编辑微软账号弹窗 (Modal) -->
+  <div class="modal-backdrop" id="account-quick-add-modal">
+    <div class="modal-box" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title"><span>➕</span> <span id="quick-add-modal-title">添加新微软账号</span></div>
+        <button class="btn-close" id="btn-close-quick-add">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label">账号备注名称</label>
+            <input type="text" id="quick-add-name" class="form-input" placeholder="例如：我的小号、副号、家人号">
+          </div>
+          <div class="form-group">
+            <label class="form-label">排列序号</label>
+            <input type="number" id="quick-add-order" class="form-input" min="1" max="99" value="2">
+          </div>
+        </div>
+        <div class="account-proxy-panel">
+          <div class="proxy-section-title">
+            <div>
+              <span>🌐 网络出口（先确认）</span>
+              <small>保存时若自动换取 Token，会立即使用这里选择的代理。</small>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">代理策略</label>
+              <select id="quick-add-proxy-mode" class="form-select">
+                <option value="direct" selected>不使用代理（直连）</option>
+                <option value="inherit">跟随全局默认设置</option>
+                <option value="proxy">使用指定代理</option>
+              </select>
+            </div>
+            <div class="form-group" id="quick-add-proxy-node-group" style="display: none;">
+              <label class="form-label">指定代理节点</label>
+              <select id="quick-add-proxy-id" class="form-select"></select>
+            </div>
+          </div>
+          <small class="form-hint" id="quick-add-proxy-hint"></small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">每天运行时间档位</label>
+          <div class="run-hour-grid" id="quick-add-run-hours"></div>
+          <small class="form-hint">每档 1 小时，启动延迟 0-10 分钟；可多选作为备用，每天只执行一次。</small>
+        </div>
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="margin-bottom: 0;">必应网页端 Cookie (可选)</label>
+            <button type="button" class="btn btn-danger-soft btn-sm" id="btn-quick-clear-cookie" style="display: none; padding: 2px 8px; font-size: 11px;">清空已有 Cookie</button>
+          </div>
+          <textarea id="quick-add-cookie" class="form-textarea" rows="3" placeholder="_U=xxx; MUID=yyy; RPSSecAuth=zzz; ...（完整 Cookie 串）"></textarea>
+          <div class="cookie-actions">
+            <button type="button" class="btn btn-primary btn-sm btn-cookie-login" data-target="quick-add-cookie" data-scope="quick">🌐 打开登录窗口自动获取 Cookie</button>
+          </div>
+          <small class="form-hint cookie-hint">必须是从 rewards.bing.com/dashboard 复制的<strong>完整</strong> Cookie 串（形如 <code>名=值; 名=值</code>）。只填单个值不会生效；缺少 <code>_U</code> 时服务端会自动从 <code>SRCHUID</code>/<code>_EDGE_S</code> 里补。</small>
+          <small class="form-hint" id="quick-add-cookie-hint">编辑账号时留空表示保留原 Cookie。</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">移动端授权码链接 / Code (可选)</label>
+          <input type="text" id="quick-add-authcode" class="form-input" placeholder="粘贴该账号登录后跳转的包含 code= 链接">
+        </div>
+        <div class="form-group">
+          <label class="form-label checkbox-label">
+            <input type="checkbox" id="quick-add-enabled" checked> 启用该账号自动打卡与巡检
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-cancel-quick-add">取消</button>
+        <button class="btn btn-primary" id="btn-save-quick-add">确认创建并添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通用操作进度弹窗 (Modal) -->
+  <div class="modal-backdrop" id="action-modal">
+    <div class="modal-box" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title"><span>⏳</span> <span id="action-modal-title">正在执行</span></div>
+        <button class="btn-close" id="btn-close-action-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="action-status-row">
+          <span class="action-badge idle" id="action-modal-badge">准备中</span>
+          <span id="action-modal-message">正在准备...</span>
+        </div>
+        <div class="action-progress-track">
+          <div class="action-progress-fill" id="action-modal-progress" style="width: 0%;"></div>
+        </div>
+        <div class="action-steps" id="action-modal-steps"></div>
+        <div class="action-live-log" id="action-modal-log"></div>
+        <div class="action-result" id="action-modal-result" style="display: none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-action-modal-background">后台运行</button>
+        <button class="btn btn-primary" id="btn-action-modal-close">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通用网页确认弹窗 (替代 window.confirm) -->
+  <div class="modal-backdrop" id="web-confirm-modal">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-title"><span>❓</span> <span id="web-confirm-title">请确认</span></div>
+        <button class="btn-close" id="btn-web-confirm-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="web-confirm-message" style="font-size: 13px; line-height: 1.75;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-web-confirm-cancel">取消</button>
+        <button class="btn btn-primary" id="btn-web-confirm-ok">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 搜索词库获取测试弹窗 (Modal) -->
+  <div class="modal-backdrop" id="search-words-modal">
+    <div class="modal-box" style="max-width: 580px;">
+      <div class="modal-header">
+        <div class="modal-title"><span>🔍</span> 搜索词库抓取测试</div>
+        <button class="btn-close" id="btn-close-words-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="words-modal-status" style="margin-bottom: 12px; font-size: 13px;"></div>
+        <div id="words-modal-tags" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 320px; overflow-y: auto; padding: 10px; background: var(--card-inner); border: 1px solid var(--border-color); border-radius: 12px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="btn-close-words-modal-btn">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 全部历史日志弹窗 (Modal，实时更新) -->
+  <div class="modal-backdrop" id="logs-modal">
+    <div class="modal-box modal-logs">
+      <div class="modal-header">
+        <div class="modal-title"><span>📜</span> 运行日志（实时更新）</div>
+        <button class="btn-close" id="btn-close-logs">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="logs-toolbar">
+          <input type="text" id="logs-filter" class="form-input" placeholder="过滤关键字 / 账号名">
+          <label class="checkbox-label" style="white-space: nowrap;">
+            <input type="checkbox" id="logs-autoscroll" checked> 自动滚屏
+          </label>
+        </div>
+        <div class="logs-list" id="logs-modal-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-logs-clear">清空页面显示</button>
+        <button class="btn btn-primary" id="btn-close-logs-btn">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 内嵌浏览器小窗（容器内 noVNC 画面）：微软账号登录 / 人工接管共用 -->
+  <div class="modal-backdrop" id="novnc-modal">
+    <div class="modal-box" style="max-width: 1040px; width: 94vw; height: 86vh;">
+      <div class="modal-header">
+        <div class="modal-title"><span>🖥️</span> <span id="novnc-modal-title">容器内浏览器</span></div>
+        <button class="btn-close" id="btn-close-novnc">&times;</button>
+      </div>
+      <div class="login-window-status" id="login-window-status" style="display: none;">
+        <span class="action-badge idle" id="login-window-badge">等待登录</span>
+        <span class="login-window-action" id="login-window-action">正在打开容器内的浏览器...</span>
+        <span class="login-window-cookies" id="login-window-cookies"></span>
+      </div>
+      <div class="login-window-error" id="login-window-error" style="display: none;"></div>
+      <div class="modal-body" style="padding: 0; flex: 1; min-height: 0;">
+        <iframe id="novnc-frame" title="容器内浏览器画面" style="width: 100%; height: 100%; border: 0; background: #111827;"></iframe>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-refresh-novnc">🔄 刷新画面</button>
+        <button class="btn btn-primary" id="btn-novnc-save-cookie" style="display: none;" disabled>✅ 保存并填入 Cookie</button>
+        <button class="btn btn-primary" id="btn-close-novnc-btn">关闭小窗</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 页面内轻提示（不阻塞操作，3 秒自动消失） -->
+  <div class="app-toast" id="app-toast" role="status" aria-live="polite"></div>
+
+  <!-- 悬浮明细气泡 (Tooltip - 位于 body 最外层防止 backdrop-filter 裁剪或偏移) -->
+  <div class="history-tooltip" id="history-tooltip" style="display: none;">
+    <div class="tooltip-header" id="tt-date">--</div>
+    <div class="tooltip-earned" id="tt-earned">+--</div>
+    <div class="tooltip-breakdown" id="tt-breakdown"></div>
+    <div class="tooltip-footer" id="tt-balance">结余: --</div>
+  </div>
+
+  <script src="webgl-bg.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

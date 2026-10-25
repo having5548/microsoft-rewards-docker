@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+data/
+.git
+.github
+.DS_Store
+*.md
+test
+cookie.txt
+src/demo.js
