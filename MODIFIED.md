@@ -53,7 +53,7 @@
 
 ### 5. 其它顺带修复
 
-- **更新检测指向本仓库**：`/api/system/check-update` 原来读的是原作者仓库的 tags/releases，跟本二改的版本号比较得出的结论是错的；现在默认读 `having5548/microsoft-rewards-docker`，可用环境变量 `MSR_UPDATE_REPO=owner/repo` 覆盖（再次 fork 时用得上）；
+- **更新检测指向本仓库**：`/api/system/check-update` 原来读的是原作者仓库的 tags/releases，跟本二改的版本号比较得出的结论是错的；现在默认读 `having5548/microsoft-rewards-docker`，可用环境变量 `MSR_UPDATE_REPO=owner/repo` 覆盖（再次二改时用得上）；
 - **CI 只发布到本仓库的 GHCR**：原工作流会向 Docker Hub 的 `wangheqiang/*` 命名空间推送，二改仓库里已移除，只推 `ghcr.io/<owner>/<repo>`，避免误推到原作者名下；
 - 修复 Windows 上检测不到 Edge 的问题：新版 Edge 装在 `Program Files (x86)\Microsoft\Edge\Application`，原候选路径写成了 `Microsoft Edge`，并补充 `%LOCALAPPDATA%` 下的用户级安装；
 - 容器退出时主动关闭登录窗口占用的 Chromium，避免 SIGTERM 后迟迟不退出；

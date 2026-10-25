@@ -1,6 +1,6 @@
 # 🎁 Microsoft Rewards 微软积分全能自动化助手 (Docker / WebUI 版)
 
-> ## ⚠️ 这是二改版（fork / derivative work），不是原作者官方版本
+> ## ⚠️ 这是二改版（derivative work），不是原作者官方版本
 >
 > | | |
 > | --- | --- |
