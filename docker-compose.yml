@@ -1,3 +1,8 @@
+# 固定项目名：容器名、网络名都跟它绑定。
+# 不固定的话 compose 会用「目录名」当项目名，换个目录/改个文件夹名就会变成另一个项目，
+# 下次 up 时会因为「容器名已存在」直接报 Conflict（实测在飞牛上踩过）。
+name: ms-rewards
+
 services:
   microsoft-rewards:
     # 与本仓库 CI 产出的镜像同名：docker compose build 会在本地打上这个 tag，
