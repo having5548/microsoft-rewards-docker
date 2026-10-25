@@ -280,8 +280,9 @@ mkdir -p ms-rewards && cd ms-rewards
 ```yaml
 services:
   microsoft-rewards:
-    image: ghcr.io/having5548/microsoft-rewards-docker:v1.9.0
-    # 固定版本号比 latest 稳；想跟最新代码就用 1.9 / latest
+    image: ghcr.io/having5548/microsoft-rewards-docker:latest
+    # 默认跟 latest：CI 每次推 main 都会重建这个标签。
+    # 想锁定版本就换成具体 tag，例如 :1.9.0（界面上的版本号由服务端下发，不会和镜像脱节）。
     # 想在本地从源码构建时，改用下一行（需要本仓库源码）：
     # build: .
     container_name: ms-rewards
@@ -340,7 +341,7 @@ docker run -d \
   -e TZ=Asia/Shanghai \
   -e MSR_VISIBLE=1 \
   -e LOGIN_WINDOW_TIMEOUT_MIN=30 \
-  ghcr.io/having5548/microsoft-rewards-docker:v1.9.0
+  ghcr.io/having5548/microsoft-rewards-docker:latest
 ```
 
 ---

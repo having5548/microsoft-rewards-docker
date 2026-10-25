@@ -57,14 +57,14 @@ sudo docker compose logs -f            # 看到「Web 控制台已启动」即�
 在任意一台有 Docker 的电脑上：
 
 ```bash
-docker build -t ghcr.io/having5548/microsoft-rewards-docker:v1.9.0 .
-docker save ghcr.io/having5548/microsoft-rewards-docker:v1.9.0 -o ms-rewards-1.9.0.tar
+docker build -t ghcr.io/having5548/microsoft-rewards-docker:latest .
+docker save ghcr.io/having5548/microsoft-rewards-docker:latest -o ms-rewards-latest.tar
 ```
 
 把 tar 传到 NAS 后导入，并在 `docker-compose.yml` 里注释掉 `build:` 段：
 
 ```bash
-docker load -i ms-rewards-1.9.0.tar
+docker load -i ms-rewards-latest.tar
 docker compose up -d
 ```
 

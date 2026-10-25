@@ -2,7 +2,7 @@ services:
   microsoft-rewards:
     # 与本仓库 CI 产出的镜像同名：docker compose build 会在本地打上这个 tag，
     # 不想本地构建时可以注释掉 build: 段，直接 docker compose pull 拉 GHCR 上的镜像。
-    image: ghcr.io/having5548/microsoft-rewards-docker:v1.9.0
+    image: ghcr.io/having5548/microsoft-rewards-docker:latest
     build:
       context: .
       dockerfile: Dockerfile
