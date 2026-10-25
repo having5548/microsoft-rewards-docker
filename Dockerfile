@@ -1,11 +1,25 @@
 FROM node:20-bookworm-slim
 
+# 构建时使用的 Debian 源。国内 NAS（飞牛 / 群晖 / 威联通）直连 deb.debian.org 常常只有
+# 几十 KB/s，换成清华 / 中科大镜像能把 apt-get 这一步从十几分钟压到一两分钟。
+# 海外环境或 GitHub Actions 保持默认官方源即可（默认值就是官方源）。
+ARG APT_MIRROR=deb.debian.org
+
 # 安装 Chromium、虚拟显示、字体与软件渲染的 OpenGL 支持
 # libgl*/libgl1-mesa-dri：Xvfb 里没有 GPU，靠 Mesa llvmpipe 提供 WebGL。
 #   微软登录页会采集 WebGL，缺了它可能被判成异常浏览器。
 # fontconfig + 各字体包：--no-install-recommends 不会自动装推荐项，
 #   字体缺失会让页面回退到占位字形，出现满屏乱码。
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN if [ "${APT_MIRROR}" != "deb.debian.org" ]; then \
+      if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+      fi; \
+      if [ -f /etc/apt/sources.list ]; then \
+        sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list; \
+      fi; \
+      echo "APT 源已切换为 ${APT_MIRROR}"; \
+    fi; \
+    apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     xvfb \
     x11vnc \

@@ -103,22 +103,127 @@ NOVNC_PASSWORD: 你的密码
 
 ---
 
-## 5. 常见问题
+## 5. 升级到新版本
+
+```bash
+cd /volume1/docker/ms-rewards      # 换成你的目录
+
+# ① 如果目录是 git clone 来的：本仓库做过历史重写，必须 reset 而不是 pull
+git fetch origin && git reset --hard origin/main
+
+# ② 拉新镜像 + 重建容器（数据卷 ./data 不动，不用重新登录）
+docker compose pull
+docker compose up -d
+
+# ③ 确认版本（应输出 1.9.0）
+curl -s http://127.0.0.1:5308/api/status | grep -o '"version":"[^"]*"'
+```
+
+图形界面（群晖 Container Manager / 飞牛 Docker）：在「项目 / 容器」里选中项目 → **构建或下载镜像** → **重新启动**。只在「镜像」页更新镜像不会让运行中的容器换镜像，**必须重建容器**。
+
+回滚：把 compose 里的 `image:` 换成固定 tag（如 `:1.9.0`）再 `docker compose up -d`。
+
+---
+
+## 6. 下载 / 构建慢的加速办法（飞牛 fnOS、群晖、威联通通用）
+
+按「代价从小到大」排序，前两条基本能解决 90% 的慢。
+
+### ① 直接拉现成镜像，不要本地构建（最省事）
+
+CI 已经构建好 amd64 + arm64 镜像，NAS 只需要 pull：
+
+```bash
+docker pull ghcr.io/having5548/microsoft-rewards-docker:latest
+```
+
+compose 里删掉 `build:` 段，只留 `image:`，然后 `docker compose up -d`。
+`build:` 存在时 `docker compose up -d` 可能又去构建一遍，这是「明明只想更新却等半小时」的常见原因。
+
+### ② 给 Docker 配镜像加速器（只对 Docker Hub 生效）
+
+飞牛：**Docker → 设置 → 镜像仓库 / Registry 镜像**，或直接改 `/etc/docker/daemon.json`：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://dockerproxy.com",
+    "https://mirror.ccs.tencentyun.com"
+  ]
+}
+```
+
+改完 `sudo systemctl restart docker`（飞牛可在「Docker → 服务」里重启）。
+
+> ⚠️ 这些加速器**只代理 docker.io**。`ghcr.io`（本项目的镜像仓库）不受它们影响，所以拉项目镜像请走 ①，必要时用下一条。
+
+### ③ ghcr.io 拉不动时：在能上网的电脑上搬运
+
+```bash
+# 有网络的电脑（x86 NAS 选 amd64，ARM NAS 选 arm64）
+docker pull --platform linux/amd64 ghcr.io/having5548/microsoft-rewards-docker:latest
+docker save ghcr.io/having5548/microsoft-rewards-docker:latest -o ms-rewards.tar
+
+# 传到 NAS 后
+docker load -i ms-rewards.tar
+docker compose up -d
+```
+
+`docker save` 出来的 tar 约 400–600MB，比在 NAS 上现构建稳得多。
+
+### ④ 确实要在 NAS 上构建：把三个源都换掉
+
+本仓库的 Dockerfile 已经支持两个构建参数，compose 里默认值就是国内的：
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `APT_MIRROR` | `mirrors.tuna.tsinghua.edu.cn` | apt 装 chromium/xvfb 等，直连官方源常常几十 KB/s |
+| `NPM_REGISTRY` | `https://registry.npmmirror.com` | `npm ci` 装依赖 |
+
+```bash
+# 只需要覆盖其中一个时
+APT_MIRROR=mirrors.ustc.edu.cn docker compose build
+```
+
+还剩基础镜像 `node:20-bookworm-slim` 走的是 docker.io —— 这个由 ② 的加速器负责。
+
+### ⑤ 构建卡住时的排查顺序
+
+```bash
+# 1. 基础镜像拉不下来？
+docker pull node:20-bookworm-slim
+
+# 2. apt 慢？进构建容器里直接测
+docker run --rm node:20-bookworm-slim \
+  sh -c 'apt-get update -o Acquire::http::Timeout=10 && echo apt-ok'
+
+# 3. npm 慢？
+docker run --rm node:20-bookworm-slim \
+  sh -c 'npm view express version --registry=https://registry.npmmirror.com'
+```
+
+三条都通还慢，就是 NAS 的出口带宽/磁盘问题了（低端 ARM 机型上 `apt-get install chromium` 本身就要十几分钟，属正常）。
+
+---
+
+## 7. 常见问题
 
 | 现象 | 原因与处理 |
 | --- | --- |
 | 构建卡在 `npm ci` / 报 `ETIMEDOUT` | 依赖源太慢。compose 默认用 `https://registry.npmmirror.com`；若你改过，确认 `NPM_REGISTRY` 生效 |
 | 拉 `node:20-bookworm-slim` 很慢 | 在 NAS 的 Docker/注册表设置里配置镜像加速器，或先 `docker pull` 再构建 |
-| 构建到 `apt-get` 失败 | Debian 源超时，重试一次即可；反复失败就在内网换 DNS（如 223.5.5.5） |
+| 构建到 `apt-get` 失败 / 极慢 | 换 `APT_MIRROR`（默认已指向清华源）；反复失败就在内网换 DNS（如 223.5.5.5） |
 | 启动后立刻退出 | `docker compose logs` 看报错；最常见是 5308 被占用 |
 | 打开登录窗口提示「未检测到 Chromium」 | 用了自建镜像但没装 chromium；本仓库 Dockerfile 已内置并设置 `CHROMIUM_PATH=/usr/bin/chromium` |
 | 登录窗口黑屏 / 连不上 | `MSR_VISIBLE` 必须为 1；反代场景检查 WebSocket 升级；`docker exec ms-rewards ps aux \| grep -E "Xvfb\|x11vnc\|websockify"` 看三个进程是否都在 |
+| 界面版本号还是旧版 | 容器没换镜像：`docker compose up -d --force-recreate`，或检查 compose 里写的是哪个 tag |
 | 内存占用高 | 搜索与登录窗口都会临时拉起 Chromium（约 200–400MB）。低内存机型建议 `MSR_VISIBLE=0` 并改用「粘贴完整 Cookie」 |
 | 时间不对 | 已内置 `TZ=Asia/Shanghai`；调度档位按容器时区计算 |
 
 ---
 
-## 6. 运维
+## 8. 运维
 
 ```bash
 # 健康检查

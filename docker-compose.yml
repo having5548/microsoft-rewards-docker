@@ -10,6 +10,9 @@ services:
         # 国内 NAS 从官方源装依赖容易超时；npmmirror 是淘宝的 npm 镜像。
         # 在海外或者想用官方源时，把环境变量 NPM_REGISTRY 设为 https://registry.npmjs.org 即可。
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+        # apt 用的 Debian 源：默认走清华镜像（飞牛/群晖上直连官方源往往只有几十 KB/s）。
+        # 海外环境可以设 APT_MIRROR=deb.debian.org 换回官方源。
+        APT_MIRROR: ${APT_MIRROR:-mirrors.tuna.tsinghua.edu.cn}
     container_name: ms-rewards
     restart: unless-stopped
     ports:

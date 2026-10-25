@@ -328,6 +328,10 @@ docker compose up -d
 | `CHROMIUM_PATH` | `/usr/bin/chromium` | 浏览器内核路径；想改用容器内的 Edge 时改这里 |
 | `MSR_DATA_DIR` | `./data` | 数据目录，本地开发时可用它指到临时目录 |
 
+> 🔧 **构建参数**（只在本地 `docker compose build` 时生效，拉现成镜像时用不到）：
+> `APT_MIRROR`（默认 `mirrors.tuna.tsinghua.edu.cn`）、`NPM_REGISTRY`（默认 `https://registry.npmmirror.com`）。
+> 飞牛 / 群晖 / 威联通上「下载慢、构建慢」的排查与加速办法见 [DEPLOY-NAS.md 第 6 节](DEPLOY-NAS.md)。
+
 ---
 
 ### 方法 2：使用 Docker Run 命令行单行启动
