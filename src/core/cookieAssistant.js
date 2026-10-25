@@ -298,4 +298,74 @@ export function describeCookieProblem(analysis) {
   return hints.length ? `Cookie 共 ${analysis.cookieCount} 项：${hints.join('；')}` : `Cookie 共 ${analysis.cookieCount} 项，关键项齐全`;
 }
 
-export default { analyzeCookie, describeCookieProblem, parseCookiePairs, buildCookieString, deriveUnderscoreU, isMicrosoftHost, MICROSOFT_COOKIE_DOMAINS };
+/**
+ * Chromium 对单个 Cookie 的硬上限：name + value 超过 4096 字节时，
+ * CDP 的 Storage.setCookies 会直接报 `Invalid cookie fields`，整批注入一起失败。
+ */
+const MAX_COOKIE_BYTES = 4096;
+
+/**
+ * 把「解析出来的 Cookie 列表」净化成 Chromium 肯接受的样子。
+ *
+ * 为什么需要它：Playwright 的 `context.addCookies()` 是**整批**调 CDP 的，
+ * 只要其中一条非法（值里带 `;` / 换行 / 制表符、名称带分号、域名带斜杠、
+ * 或单条超过 4096 字节），整批都返回 `Invalid cookie fields` ——
+ * 表现出来就是「单次测搜 / 打卡」在启动浏览器这一步直接失败。
+ * 而微软的 `RPSSecAuth`、`ESTSAUTH` 这类 Cookie 恰恰很容易接近上限。
+ *
+ * 策略：能修的修（补 path、去尾部空白），不能修的跳过并记录原因，
+ * 让主流程继续跑，而不是一条脏数据毁掉整轮任务。
+ */
+export function sanitizeCookiesForBrowser(list, options = {}) {
+  const defaultDomain = options.defaultDomain || '.bing.com';
+  const accepted = [];
+  const rejected = [];
+
+  for (const raw of Array.isArray(list) ? list : []) {
+    if (!raw || typeof raw !== 'object') {
+      rejected.push({ name: '(空)', reason: '不是对象' });
+      continue;
+    }
+    const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+    let value = raw.value === undefined || raw.value === null
+      ? ''
+      : (typeof raw.value === 'string' ? raw.value : String(raw.value));
+    const domain = typeof raw.domain === 'string' && raw.domain.trim() ? raw.domain.trim() : defaultDomain;
+    const path = typeof raw.path === 'string' && raw.path.startsWith('/') ? raw.path : '/';
+
+    if (!name) {
+      rejected.push({ name: '(无名称)', reason: '名称为空' });
+      continue;
+    }
+    // 分号 / 等号 / 空白 / 控制字符都会让 CDP 判为非法
+    if (/[;=\s\u0000-\u001f]/.test(name)) {
+      rejected.push({ name, reason: '名称含非法字符' });
+      continue;
+    }
+    // 值里出现分号或控制字符说明解析时就串行了，注入必然失败
+    if (/[;\r\n\t\u0000]/.test(value)) {
+      rejected.push({ name, reason: '值含分号或控制字符' });
+      continue;
+    }
+    // 尾部空白同样会被判非法；浏览器本来也不保留它
+    value = value.replace(/\s+$/, '');
+
+    if (name.length + value.length > MAX_COOKIE_BYTES) {
+      rejected.push({
+        name,
+        reason: `超过 Chromium 单条上限（${name.length + value.length}/${MAX_COOKIE_BYTES} 字节）`
+      });
+      continue;
+    }
+    if (!domain.includes('.') || domain.includes('/')) {
+      rejected.push({ name, reason: '域名无效' });
+      continue;
+    }
+
+    accepted.push({ name, value, domain, path });
+  }
+
+  return { accepted, rejected };
+}
+
+export default { analyzeCookie, describeCookieProblem, parseCookiePairs, buildCookieString, deriveUnderscoreU, sanitizeCookiesForBrowser, isMicrosoftHost, MICROSOFT_COOKIE_DOMAINS };

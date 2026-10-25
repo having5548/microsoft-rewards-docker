@@ -32,6 +32,7 @@ import {
 } from './fingerprint.js';
 import { findChromiumExecutable } from './chromiumExecutable.js';
 import { prepareBrowserProxy } from './localProxyBridge.js';
+import { sanitizeCookiesForBrowser } from './cookieAssistant.js';
 
 export function classifyBingLoginState(signals = {}) {
   const userName = [signals.idN, signals.idA, signals.idName]
@@ -234,11 +235,39 @@ class BrowserManager extends EventEmitter {
         } catch {}
       });
 
-      // 注入当前账号的完整 Cookie
+      // 注入当前账号的完整 Cookie。
+      // Playwright 的 addCookies 是整批走 CDP 的：只要有一条非法（值里带 `;`、换行、
+      // 名称带分号、域名带斜杠，或单条 name+value 超过 4096 字节 —— 微软的 RPSSecAuth /
+      // ESTSAUTH 很容易顶到上限），整批都会被拒，报 `Invalid cookie fields`，
+      // 于是单次测搜 / 打卡会直接卡死在「正在准备浏览器」这一步。
+      // 这里先净化（能修的修、修不了的跳过并记日志），再批量注入；批量仍失败就逐条兜底。
       if (acc?.cookie) {
-        const cookies = this.parseCookies(acc.cookie, '.bing.com');
-        const cnCookies = this.parseCookies(acc.cookie, 'cn.bing.com');
-        await context.addCookies([...cookies, ...cnCookies]);
+        const { accepted, rejected } = sanitizeCookiesForBrowser([
+          ...this.parseCookies(acc.cookie, '.bing.com'),
+          ...this.parseCookies(acc.cookie, 'cn.bing.com')
+        ]);
+        if (rejected.length > 0) {
+          const detail = rejected.map(item => `${item.name}（${item.reason}）`).join('、');
+          logger.log('🟡', `有 ${rejected.length} 个 Cookie 无法注入浏览器，已跳过：${detail}`, '', acc?.name);
+          if (rejected.some(item => item.name === '_U')) {
+            logger.log('🔴', '被跳过的 Cookie 里包含 _U：本轮搜索不会关联到账号，请改用「打开登录窗口自动获取 Cookie」重新取一份', '', acc?.name);
+          }
+        }
+        if (accepted.length > 0) {
+          try {
+            await context.addCookies(accepted);
+          } catch (e) {
+            let okCount = 0;
+            for (const cookie of accepted) {
+              try {
+                await context.addCookies([cookie]);
+                okCount += 1;
+              } catch {}
+            }
+            logger.log('🟡', `批量注入 Cookie 失败（${e.message}），已改为逐条注入，成功 ${okCount}/${accepted.length} 条`, '', acc?.name);
+            if (okCount === 0) throw e;
+          }
+        }
       }
 
       this.browser = browser;
