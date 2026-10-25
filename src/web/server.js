@@ -426,7 +426,14 @@ export function createServer() {
   let cachedLatest = null;
   let cachedLatestTime = 0;
 
-  const GITHUB_REPO = 'wangheqiang530/microsoft-rewards-docker';
+  // 二改仓库：更新检测跟随**本仓库**，不再指向原作者的项目（否则会拿上游版本号
+  // 跟自己比，永远提示「该更新」或「已最新」但结论是错的）。
+  // 再次 fork 时可用环境变量覆盖：MSR_UPDATE_REPO=owner/repo
+  const GITHUB_REPO = String(
+    process.env.MSR_UPDATE_REPO
+    || process.env.GITHUB_REPOSITORY
+    || 'having5548/microsoft-rewards-docker'
+  ).trim();
 
   async function fetchLatestVersionInfo() {
     const tagRes = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/tags?per_page=100`, {
