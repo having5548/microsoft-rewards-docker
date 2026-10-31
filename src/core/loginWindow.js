@@ -37,6 +37,8 @@ const POLL_INTERVAL_MS = 1500;
 const DEFAULT_TIMEOUT_MIN = 30;
 /** 登录成功后需要停留这么久，等微软把 identity cookie 全部种完再保存 */
 const SETTLE_MS = 1500;
+const LOGIN_HOME_URL = 'https://cn.bing.com';
+const LOGIN_STARTUP_ID = `new-${process.pid}-${Date.now()}`;
 
 export const LOGIN_WINDOW_URL = '/novnc/vnc.html?autoconnect=1&resize=scale&path=websockify';
 
@@ -81,6 +83,8 @@ class LoginWindow {
     this.slotOwner = null;
     this.closing = false;
     this.proxyBridge = null;
+    this.openPromise = null;
+    this.closePromise = null;
   }
 
   isOpen() {
@@ -106,10 +110,27 @@ class LoginWindow {
 
   /** 启动可见浏览器并打开微软登录页 */
   async open(accountId = null) {
+    if (this.closePromise) await this.closePromise;
+    if (this.openPromise) {
+      if (this.pendingAccountId !== accountId) throw new Error('登录窗口正在为另一个账号启动，请等待当前启动完成');
+      return { ...(await this.openPromise), alreadyOpen: true };
+    }
     if (this.isOpen()) {
+      if (this.accountId !== accountId) throw new Error('登录窗口已被另一个账号占用，请先关闭当前窗口');
       return { ...this.getState(), alreadyOpen: true };
     }
 
+    this.pendingAccountId = accountId;
+    this.openPromise = this.openInternal(accountId);
+    try {
+      return await this.openPromise;
+    } finally {
+      this.openPromise = null;
+      this.pendingAccountId = null;
+    }
+  }
+
+  async openInternal(accountId) {
     const execPath = findChromiumExecutable();
     if (!execPath) {
       throw new Error('未检测到 Chromium / Edge 浏览器内核，无法打开登录窗口（容器里应设置 CHROMIUM_PATH=/usr/bin/chromium）');
@@ -121,14 +142,15 @@ class LoginWindow {
     const acc = accountId ? configManager.findAccount(accountId) : null;
     if (accountId && !acc) throw new Error('账号不存在');
 
-    const owner = `ms-login:${accountId || 'default'}:${Date.now()}`;
+    const sessionAccountId = accountId || `${LOGIN_STARTUP_ID}-${Date.now()}`;
+    const owner = `ms-login:${sessionAccountId}:${Date.now()}`;
     const gotSlot = await browserSlotLock.acquire(owner, 5000);
     if (!gotSlot) {
       throw new Error('浏览器正被积分任务占用，请等当前任务结束（或先停止任务）再打开登录窗口');
     }
     this.slotOwner = owner;
 
-    const profileDir = path.join(PROFILE_ROOT, safeAccountId(accountId));
+    const profileDir = path.join(PROFILE_ROOT, safeAccountId(sessionAccountId));
     fs.mkdirSync(profileDir, { recursive: true });
 
     try {
@@ -164,6 +186,7 @@ class LoginWindow {
       });
 
       this.accountId = accountId || null;
+      this.sessionAccountId = sessionAccountId;
       this.startedAt = Date.now();
       this.loggedIn = false;
       this.cookieCount = 0;
@@ -186,13 +209,13 @@ class LoginWindow {
       // 才 domcontentloaded，接口要是等它，前端就会长时间停在「启动中」看不到画面。
       // 这里立刻把状态返回去，小窗先连上（noVNC 拿到的是 X 显示，不依赖页面加载），
       // 页面加载完成后再由轮询把提示文案更新回来。
-      this.lastAction = '正在打开微软 Rewards 登录页...';
-      this.page.goto('https://rewards.bing.com/dashboard', {
+      this.lastAction = '正在打开 cn.bing.com 登录页...';
+      this.page.goto(LOGIN_HOME_URL, {
         waitUntil: 'domcontentloaded',
         timeout: 45000
       }).then(() => {
         if (this.isOpen() && !this.loggedIn) {
-          this.lastAction = '登录页已打开，请在小窗里登录微软账号';
+          this.lastAction = 'cn.bing.com 已打开，请在小窗里登录微软账号';
         }
       }).catch((e) => {
         if (this.isOpen()) {
@@ -304,6 +327,9 @@ class LoginWindow {
    */
   async save(accountId) {
     if (!this.context) throw new Error('登录窗口没有打开，请先点「打开登录窗口」');
+    if (accountId && this.accountId && accountId !== this.accountId) {
+      throw new Error('当前浏览器登录窗口属于另一个账号，请先关闭后再重试');
+    }
     const targetId = accountId || this.accountId;
     const acc = targetId ? configManager.findAccount(targetId) : null;
     if (targetId && !acc) throw new Error('账号不存在');
@@ -344,8 +370,8 @@ class LoginWindow {
     // 校验通过才落库
     const saved = configManager.upsertAccount({
       id: targetId || undefined,
-      cookie: analysis.cookie,
-      ...(acc ? {} : { name: status.userName ? `账号 (${status.userName})` : undefined })
+      name: acc ? undefined : (status.userName ? `账号 (${status.userName})` : undefined),
+      cookie: analysis.cookie
     });
 
     logger.log('🟢', `已从登录窗口保存 Cookie：${describeCookieProblem(analysis)}${status.balance ? `，当前积分 ${status.balance}` : ''}`, '', saved?.name);
@@ -366,16 +392,26 @@ class LoginWindow {
   }
 
   async close(reason = 'manual') {
+    if (this.closePromise) return this.closePromise;
     if (!this.context) return { closed: false };
+    const context = this.context;
     this.closing = true;
+    const closing = (async () => {
+      try {
+        await withTimeout(context.close(), 15000, '关闭登录浏览器超时');
+      } catch (e) {
+        logger.log('🟡', `关闭登录窗口时出现异常: ${e.message}`);
+      } finally {
+        if (this.context === context) this.cleanup(reason);
+      }
+      return { closed: true, reason };
+    })();
+    this.closePromise = closing;
     try {
-      await withTimeout(this.context.close(), 15000, '关闭登录浏览器超时');
-    } catch (e) {
-      logger.log('🟡', `关闭登录窗口时出现异常: ${e.message}`);
+      return await closing;
     } finally {
-      this.cleanup(reason);
+      if (this.closePromise === closing) this.closePromise = null;
     }
-    return { closed: true, reason };
   }
 
   /** 只清理状态与资源，不抛错 */
@@ -385,6 +421,7 @@ class LoginWindow {
     try { this.context = null; } catch {}
     this.page = null;
     this.accountId = null;
+    this.sessionAccountId = null;
     this.startedAt = 0;
     this.loggedIn = false;
     this.cookieCount = 0;

@@ -17,9 +17,9 @@
  * 是代价最小的自洽选择。
  */
 
-// 与镜像内 chromium 的主版本保持一致（Debian bookworm 最新为 155）。
+// 与镜像内 chromium 的主版本保持一致（当前构建环境为 156）。
 // 升级基础镜像后如果这里落后了，启动时会打印提醒，不会静默产生版本矛盾。
-export const CHROME_MAJOR = '155';
+export const CHROME_MAJOR = '156';
 export const CHROME_FULL = `${CHROME_MAJOR}.0.0.0`;
 
 export const PLATFORM = {

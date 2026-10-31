@@ -14,6 +14,8 @@ let microsoftActionPollTimer = null;
 let cookieLoginPollTimer = null;
 let cookieLoginAccountId = null;
 let cookieLoginTargetInput = null;
+let cookieLoginOpening = false;
+let cookieLoginClosing = false;
 let appToastTimer = null;
 let actionProgressTimer = null;
 let lastActionLog = '';
@@ -1614,6 +1616,8 @@ function startCookieLoginPolling() {
 }
 
 async function openCookieLoginWindow(scope = 'settings', targetInputId = null) {
+  if (cookieLoginOpening || cookieLoginClosing) return;
+  cookieLoginOpening = true;
   const accountId = resolveCookieLoginAccountId(scope);
   cookieLoginAccountId = accountId;
   cookieLoginTargetInput = targetInputId || null;
@@ -1632,7 +1636,7 @@ async function openCookieLoginWindow(scope = 'settings', targetInputId = null) {
   setLoginWindowStatus({
     badge: '启动中',
     badgeCls: 'idle',
-    action: '正在容器内启动浏览器（首次启动约 2-5 秒）…',
+    action: '正在准备登录浏览器，请稍候…',
     cookies: '浏览器起来后小窗会自动出现画面',
     error: ''
   });
@@ -1666,6 +1670,8 @@ async function openCookieLoginWindow(scope = 'settings', targetInputId = null) {
       error: `无法打开登录窗口：${e.message || '未知错误'}`
     });
     resetLoginWindowSaveButton(true);
+  } finally {
+    cookieLoginOpening = false;
   }
 }
 
@@ -1724,6 +1730,8 @@ async function saveCookieFromLoginWindow() {
 }
 
 async function closeCookieLoginWindow(notifyServer = true) {
+  if (cookieLoginClosing) return;
+  cookieLoginClosing = true;
   stopCookieLoginPolling();
   cookieLoginTargetInput = null;
   resetLoginWindowSaveButton(true);
@@ -1731,10 +1739,12 @@ async function closeCookieLoginWindow(notifyServer = true) {
   const statusBar = document.getElementById('login-window-status');
   if (statusBar) statusBar.style.display = 'none';
   setLoginWindowStatus({ badge: '等待登录', badgeCls: 'idle', action: '', cookies: '', error: '' });
-  if (notifyServer) {
-    try {
+  try {
+    if (notifyServer) {
       await fetch('/api/auth/login-window/close', { method: 'POST' });
-    } catch {}
+    }
+  } finally {
+    cookieLoginClosing = false;
   }
 }
 

@@ -242,10 +242,9 @@ class BrowserManager extends EventEmitter {
       // 于是单次测搜 / 打卡会直接卡死在「正在准备浏览器」这一步。
       // 这里先净化（能修的修、修不了的跳过并记日志），再批量注入；批量仍失败就逐条兜底。
       if (acc?.cookie) {
-        const { accepted, rejected } = sanitizeCookiesForBrowser([
-          ...this.parseCookies(acc.cookie, '.bing.com'),
-          ...this.parseCookies(acc.cookie, 'cn.bing.com')
-        ]);
+        const { accepted, rejected } = sanitizeCookiesForBrowser(
+          this.parseCookies(acc.cookie, '.bing.com')
+        );
         if (rejected.length > 0) {
           const detail = rejected.map(item => `${item.name}（${item.reason}）`).join('、');
           logger.log('🟡', `有 ${rejected.length} 个 Cookie 无法注入浏览器，已跳过：${detail}`, '', acc?.name);

@@ -15,9 +15,10 @@ test('v1.7.7 删除顶部重复编辑按钮，只保留任务清单编辑入口'
   assert.equal(indexHtml.includes('id="btn-edit-current-account-header"'), true);
 });
 
-test('Cookie 配置向导统一使用 rewards.bing.com/dashboard', () => {
-  assert.equal(indexHtml.includes('https://rewards.bing.com/dashboard'), true);
-  assert.equal(indexHtml.includes('登录 <a href="https://cn.bing.com"'), false);
+test('登录窗口首屏使用 cn.bing.com，积分搜索入口保持独立', () => {
+  const loginWindowJs = fs.readFileSync(new URL('../src/core/loginWindow.js', import.meta.url), 'utf-8');
+  assert.ok(loginWindowJs.includes("LOGIN_HOME_URL = 'https://cn.bing.com'"));
+  assert.ok(indexHtml.includes('https://rewards.bing.com/dashboard'));
   assert.equal(indexHtml.includes('浏览器 cn.bing.com 的完整 Cookie'), false);
 });
 
