@@ -26,9 +26,26 @@ test('登录窗口首屏使用 cn.bing.com，积分搜索入口保持独立', ()
 test('Apple 风格覆盖层已加载并包含移动端布局约束', () => {
   assert.ok(indexHtml.includes('apple-overrides.css'));
   assert.match(appleCss, /--apple-bg: #f5f5f7/);
-  assert.match(appleCss, /--apple-blue: #0071e3/);
+  assert.match(appleCss, /--apple-blue: #0066cc/);
   assert.match(appleCss, /@media \(max-width: 760px\)/);
   assert.doesNotMatch(appleCss, /bg-gradient|shadow-2xl|shadow-inner/);
+});
+
+test('主题支持明暗切换并为两种模式定义可读颜色', () => {
+  assert.ok(indexHtml.includes('id="btn-theme-toggle"'));
+  assert.match(appJs, /prefers-color-scheme: dark/);
+  assert.match(appJs, /function setTheme\(theme/);
+  assert.ok(appleCss.includes(':root[data-theme="light"]'));
+  assert.ok(appleCss.includes(':root[data-theme="dark"]'));
+  assert.match(appleCss, /--apple-text: #1d1d1f/);
+  assert.match(appleCss, /--apple-text: #f5f5f7/);
+});
+
+test('禁用鼠标边缘高光与卡片倾斜', () => {
+  assert.equal(appJs.includes('initLiquidMouseFollower'), false);
+  assert.equal(appJs.includes("classList.toggle('mouse-follow-enabled'"), false);
+  assert.ok(indexHtml.includes('id="cfg-mouse-follow" disabled'));
+  assert.ok(indexHtml.includes('id="cfg-card-tilt" disabled'));
 });
 
 test('发布版本号在 package 与 Web 服务端保持一致', () => {
@@ -60,20 +77,40 @@ test('液态玻璃视觉包含 WebGL2 背景、统一卡片材质与配置项', 
   assert.match(webglJs, /renderPrism/);
 });
 
-test('界面固定夜间模式并修复下拉菜单深色可读性', () => {
-  assert.equal(indexHtml.includes('data-theme-val="light"'), false);
-  assert.equal(indexHtml.includes('id="cfg-ui-theme" value="dark"'), true);
-  assert.equal(styleCss.includes('[data-theme="light"]'), false);
+test('主题支持系统、浅色、暗色选择并保持下拉菜单可读', () => {
+  assert.ok(indexHtml.includes('id="cfg-ui-theme" class="form-select"'));
+  assert.match(indexHtml, /<option value="system">跟随系统<\/option>/);
+  assert.match(indexHtml, /<option value="light">浅色模式<\/option>/);
+  assert.match(indexHtml, /<option value="dark">暗夜模式<\/option>/);
+  assert.ok(appJs.includes("['light', 'dark', 'system'].includes(theme)"));
+  assert.ok(appleCss.includes(':root[data-theme="light"]'));
+  assert.ok(appleCss.includes(':root[data-theme="dark"]'));
   assert.match(styleCss, /\.form-select option[\s\S]*background: #111827/);
   assert.match(styleCss, /\.stamp-grid-item\.collected[\s\S]*#FFD84D/);
 });
 
-test('鼠标只驱动边框高光角度，不再生成跟随光斑', () => {
-  assert.match(appJs, /--pointer-angle/);
-  assert.match(appJs, /Math\.atan2\(normY, normX\) \* 180 \/ Math\.PI \+ 90/);
+test('鼠标跟随与卡片倾斜已停用', () => {
+  assert.equal(appJs.includes('Math.atan2'), false);
+  assert.equal(appJs.includes('initLiquidMouseFollower'), false);
+  assert.equal(appJs.includes("classList.toggle('mouse-follow-enabled'"), false);
+  assert.ok(appleCss.includes('.card-tilt-enabled .glass-surface { transform: none !important; }'));
+});
+
+test('卡片初始化只增强表面，不监听鼠标移动', () => {
+  const follower = appJs.match(/function initGlassSurfaces\(\) \{([\s\S]*?)\n\}/)?.[1] || '';
+  assert.doesNotMatch(follower, /mousemove|pointer-angle|Math\.atan2/);
+  assert.match(follower, /enhanceGlassSurfaces/);
+  assert.equal(appJs.includes("classList.toggle('mouse-follow-enabled'"), false);
+  assert.equal(styleCss.includes('--mouse-x'), false);
+});
+
+
+test('遗留鼠标高光角度样式不再参与页面呈现', () => {
+  assert.equal(appJs.includes('--pointer-angle'), false);
+  assert.equal(appJs.includes('Math.atan2'), false);
   assert.equal(appJs.includes('--mouse-x'), false);
   assert.equal(styleCss.includes('--mouse-x'), false);
-  assert.match(styleCss, /conic-gradient\([\s\S]*--pointer-angle/);
+  assert.match(styleCss, /body\.mouse-follow-enabled \.glass-surface::before\s*\{\s*display:\s*none !important;/);
 });
 
 test('账号汇总完整展开迷你印章并优化任务卡与统计块排版', () => {

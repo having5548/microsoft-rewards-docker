@@ -102,8 +102,9 @@ body {
     background-color 0.28s ease;
 }
 
-/* 鼠标位置只驱动边框上的高光弧，不照亮卡片表面 */
+/* 保留旧配置兼容，但不显示鼠标跟随边框高光。 */
 body.mouse-follow-enabled .glass-surface::before {
+  display: none !important;
   content: '';
   position: absolute;
   inset: 0;

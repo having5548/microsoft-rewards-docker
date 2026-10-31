@@ -49,6 +49,7 @@
 
           <!-- 功能按钮组 -->
           <div class="header-actions">
+            <button id="btn-theme-toggle" class="btn btn-secondary btn-sm" type="button" aria-label="切换暗夜模式" title="切换暗夜模式"><span aria-hidden="true">☾</span></button>
             <button id="btn-open-logs" class="btn btn-secondary btn-sm" title="查看全部历史日志（实时更新）">
               <span>📜</span> 日志
             </button>
@@ -628,7 +629,14 @@
             </div>
             <small class="form-hint" id="cfg-search-rhythm-hint">--</small>
           </div>
-          <input type="hidden" id="cfg-ui-theme" value="dark">
+          <div class="form-group">
+            <label class="form-label" for="cfg-ui-theme">外观主题</label>
+            <select id="cfg-ui-theme" class="form-select" aria-label="外观主题">
+              <option value="system">跟随系统</option>
+              <option value="light">浅色模式</option>
+              <option value="dark">暗夜模式</option>
+            </select>
+          </div>
           <div class="form-group">
             <label class="form-label">PC 搜索执行引擎</label>
             <select id="cfg-search-engine" class="form-select">
@@ -797,10 +805,10 @@
                 <label class="form-label">交互联动开关</label>
                 <div class="checkbox-grid" style="margin-top: 6px;">
                   <label class="checkbox-label">
-                    <input type="checkbox" id="cfg-mouse-follow" checked> 开启卡片轮廓高光跟随鼠标
+                    <input type="checkbox" id="cfg-mouse-follow" disabled> 卡片轮廓不跟随鼠标
                   </label>
                   <label class="checkbox-label">
-                    <input type="checkbox" id="cfg-card-tilt" checked> 开启卡片悬停 3D 微倾斜透视
+                    <input type="checkbox" id="cfg-card-tilt" disabled> 卡片保持静止，不启用倾斜
                   </label>
                 </div>
               </div>

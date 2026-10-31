@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initUIEvents();
   initInstantTooltips();
   initLiquidVisuals();
-  initLiquidMouseFollower();
+  initGlassSurfaces();
   startCountdownTimer();
   fetchStatus();
   fetchSystemMetrics();
@@ -80,9 +80,9 @@ const DEFAULT_VISUAL_CONFIG = {
   cardBlur: 20,
   borderGlow: 100,
   liquidSheen: 100,
-  mouseFollow: true,
+  mouseFollow: false,
   rimSpread: 34,
-  cardTilt: true
+  cardTilt: false
 };
 
 const THEME_ACCENT_COLORS = {
@@ -271,8 +271,7 @@ function applyVisualConfig(cfg = {}) {
 
   document.body.classList.add('liquid-glass-enabled');
   document.body.classList.toggle('webgl-bg-active', !!v.bgEnabled);
-  document.body.classList.toggle('mouse-follow-enabled', !!v.mouseFollow);
-  document.body.classList.toggle('card-tilt-enabled', !!v.cardTilt);
+  document.body.classList.remove('mouse-follow-enabled', 'card-tilt-enabled');
   document.body.dataset.visualTheme = v.colorTheme || 'aurora';
 
   localStorage.setItem('msr_visual_config', JSON.stringify(v));
@@ -338,8 +337,8 @@ function readVisualInputs() {
     borderGlow: readNumber('cfg-border-glow', 100),
     liquidSheen: readNumber('cfg-liquid-sheen', 100),
     rimSpread: readNumber('cfg-rim-spread', 34),
-    mouseFollow: document.getElementById('cfg-mouse-follow')?.checked ?? true,
-    cardTilt: document.getElementById('cfg-card-tilt')?.checked ?? true,
+    mouseFollow: false,
+    cardTilt: false,
     bgEnabled: document.getElementById('cfg-bg-enabled')?.checked ?? true,
     bgStyle: normalizeBgStyle(document.getElementById('cfg-bg-style')?.value || 'silk'),
     colorTheme: normalizeColorTheme(document.getElementById('cfg-color-theme')?.value || 'aurora'),
@@ -392,8 +391,10 @@ function initLiquidVisuals() {
     });
   };
 
-  bindCheckbox('cfg-mouse-follow', 'mouseFollow');
-  bindCheckbox('cfg-card-tilt', 'cardTilt');
+  const mouseFollow = document.getElementById('cfg-mouse-follow');
+  const cardTilt = document.getElementById('cfg-card-tilt');
+  if (mouseFollow) mouseFollow.checked = false;
+  if (cardTilt) cardTilt.checked = false;
   bindCheckbox('cfg-bg-enabled', 'bgEnabled');
 
   const bindSelect = (id, key) => {
@@ -423,9 +424,9 @@ function applyVisualPreset(presetName) {
       cardBlur: 24,
       borderGlow: 120,
       liquidSheen: 120,
-      mouseFollow: true,
+      mouseFollow: false,
       rimSpread: 30,
-      cardTilt: true,
+      cardTilt: false,
       bgEnabled: true,
       bgStyle: 'silk',
       colorTheme: 'ocean',
@@ -439,9 +440,9 @@ function applyVisualPreset(presetName) {
       cardBlur: 20,
       borderGlow: 110,
       liquidSheen: 100,
-      mouseFollow: true,
+      mouseFollow: false,
       rimSpread: 34,
-      cardTilt: true,
+      cardTilt: false,
       bgEnabled: true,
       bgStyle: 'veil',
       colorTheme: 'aurora',
@@ -455,9 +456,9 @@ function applyVisualPreset(presetName) {
       cardBlur: 22,
       borderGlow: 100,
       liquidSheen: 110,
-      mouseFollow: true,
+      mouseFollow: false,
       rimSpread: 42,
-      cardTilt: true,
+      cardTilt: false,
       bgEnabled: true,
       bgStyle: 'grainient',
       colorTheme: 'ocean',
@@ -512,109 +513,50 @@ function enhanceGlassSurfaces(root = document) {
   root?.querySelectorAll?.(GLASS_SURFACE_SELECTOR).forEach(el => el.classList.add('glass-surface'));
 }
 
-function initLiquidMouseFollower() {
+function initGlassSurfaces() {
   enhanceGlassSurfaces();
-  let cards = [];
-  const updateCardsList = () => {
-    enhanceGlassSurfaces();
-    cards = Array.from(document.querySelectorAll(GLASS_SURFACE_SELECTOR));
-  };
-
-  let observerRaf = 0;
-  const observer = new MutationObserver(() => {
-    if (observerRaf) return;
-    observerRaf = requestAnimationFrame(() => {
-      observerRaf = 0;
-      updateCardsList();
-    });
-  });
+  const observer = new MutationObserver(() => enhanceGlassSurfaces());
   observer.observe(document.body, { childList: true, subtree: true });
-  updateCardsList();
-
-  let rafPending = false;
-  let mouseEvent = null;
-
-  window.addEventListener('mousemove', (e) => {
-    mouseEvent = e;
-    if (!rafPending) {
-      rafPending = true;
-      requestAnimationFrame(() => {
-        rafPending = false;
-        if (!mouseEvent) return;
-        const mx = mouseEvent.clientX;
-        const my = mouseEvent.clientY;
-        const isTiltEnabled = document.body.classList.contains('card-tilt-enabled');
-
-        for (let i = 0; i < cards.length; i++) {
-          const card = cards[i];
-          const rect = card.getBoundingClientRect();
-          if (rect.width === 0 || rect.height === 0) continue;
-          const isInside = mx >= rect.left && mx <= rect.right && my >= rect.top && my <= rect.bottom;
-          if (
-            mx >= rect.left - 350 &&
-            mx <= rect.right + 350 &&
-            my >= rect.top - 350 &&
-            my <= rect.bottom + 350
-          ) {
-            const relX = mx - rect.left;
-            const relY = my - rect.top;
-            const normX = (relX / rect.width) * 2 - 1;
-            const normY = (relY / rect.height) * 2 - 1;
-            const pointerAngle = Math.atan2(normY, normX) * 180 / Math.PI + 90;
-            const normalizedAngle = ((pointerAngle % 360) + 360) % 360;
-            card.style.setProperty('--pointer-angle', `${normalizedAngle.toFixed(2)}deg`);
-
-            if (isTiltEnabled && isInside) {
-              const normX = (relX / rect.width) - 0.5;
-              const normY = (relY / rect.height) - 0.5;
-              const isLargeSurface = card.matches('.header, .section-card, .modal-box, .account-selector-section, .ms-toolbar');
-              const strength = isLargeSurface ? 0.9 : 2.4;
-              const lift = isLargeSurface ? 0 : -2;
-              const tiltX = -normY * strength;
-              const tiltY = normX * strength;
-              card.style.transform = `perspective(1100px) rotateX(${tiltX.toFixed(2)}deg) rotateY(${tiltY.toFixed(2)}deg) translateY(${lift}px)`;
-            } else if (card.style.transform) {
-              card.style.transform = '';
-            }
-          } else if (card.style.transform) {
-            card.style.transform = '';
-          }
-        }
-      });
-    }
-  }, { passive: true });
-
-  const resetCardTilt = () => {
-    for (let i = 0; i < cards.length; i++) {
-      cards[i].style.transform = '';
-    }
-  };
-  document.documentElement.addEventListener('mouseleave', resetCardTilt);
-  window.addEventListener('blur', resetCardTilt);
 }
 
-// 全时段固定夜间模式
 function initTheme() {
-  applyTheme('dark');
+  const saved = localStorage.getItem('ms_rewards_theme');
+  const preferred = saved || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  setTheme(preferred, false);
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', (event) => {
+    if (currentTheme === 'system') applyTheme('system');
+  });
 }
 
-function setTheme(_theme, syncServer = false) {
-  currentTheme = 'dark';
-  localStorage.setItem('ms_rewards_theme', 'dark');
-  applyTheme('dark');
+function setTheme(theme, syncServer = false) {
+  currentTheme = ['light', 'dark', 'system'].includes(theme) ? theme : 'system';
+  localStorage.setItem('ms_rewards_theme', currentTheme);
+  applyTheme(currentTheme);
   const selectElem = document.getElementById('cfg-ui-theme');
-  if (selectElem) selectElem.value = 'dark';
+  if (selectElem) selectElem.value = currentTheme;
   if (syncServer) {
     fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ui: { theme: 'dark' } })
+      body: JSON.stringify({ ui: { theme: currentTheme } })
     }).catch(() => {});
   }
 }
 
-function applyTheme() {
-  document.documentElement.setAttribute('data-theme', 'dark');
+function applyTheme(theme = currentTheme) {
+  const actual = theme === 'system'
+    ? (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : theme;
+  document.documentElement.setAttribute('data-theme', actual);
+  document.documentElement.style.colorScheme = actual;
+  const selectElem = document.getElementById('cfg-ui-theme');
+  if (selectElem) selectElem.value = currentTheme;
+  const toggle = document.getElementById('btn-theme-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-label', actual === 'dark' ? '切换浅色模式' : '切换暗夜模式');
+    toggle.title = actual === 'dark' ? '切换浅色模式' : '切换暗夜模式';
+    toggle.innerHTML = actual === 'dark' ? '<span aria-hidden="true">☀</span>' : '<span aria-hidden="true">☾</span>';
+  }
 }
 
 // 启动每日刷新剩余时间倒计时 (距离下一次 09:00:00，中国区 Rewards 刷新点)
@@ -701,6 +643,11 @@ function initInstantTooltips() {
 }
 
 function initUIEvents() {
+  document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
+    setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true);
+  });
+  document.getElementById('cfg-ui-theme')?.addEventListener('change', (event) => setTheme(event.target.value, true));
+
   // 立即运行 & 停止 (支持全局与单账号)
   document.getElementById('btn-run')?.addEventListener('click', runTasks);
   document.getElementById('btn-stop')?.addEventListener('click', stopTasks);
@@ -3432,7 +3379,8 @@ async function fetchConfig() {
     if (res.success) {
       currentConfig = res.data;
       if (res.data.ui?.theme && !localStorage.getItem('ms_rewards_theme')) {
-        setTheme(res.data.ui.theme, false);
+        currentTheme = ['light', 'dark', 'system'].includes(res.data.ui.theme) ? res.data.ui.theme : 'system';
+        applyTheme(currentTheme);
       }
       const cronHint = document.getElementById('cron-hint');
       if (cronHint) {
@@ -4054,9 +4002,8 @@ function populateSettingsForm() {
   document.getElementById('cfg-search-engine').value = c.tasks?.searchEngineMode || 'browser';
   document.getElementById('cfg-search-api').value = c.tasks?.searchApi || 'baidu.official';
   // 主题
-  const themeVal = 'dark';
   const themeSelect = document.getElementById('cfg-ui-theme');
-  if (themeSelect) themeSelect.value = themeVal;
+  if (themeSelect) themeSelect.value = currentTheme;
   // 调度
   document.getElementById('cfg-sched-enabled').checked = c.schedule?.enabled !== false;
   document.getElementById('cfg-sched-cron').value = c.schedule?.cron || '*/25 * * * *';

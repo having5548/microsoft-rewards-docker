@@ -1,15 +1,36 @@
 /* Apple 风格控制台覆盖层：保留既有 DOM 与事件，仅统一视觉和响应式行为。 */
-:root {
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
   --apple-bg: #f5f5f7;
   --apple-surface: #ffffff;
+  --apple-surface-muted: #f0f0f2;
+  --apple-input: #f5f5f7;
   --apple-text: #1d1d1f;
-  --apple-muted: #6e6e73;
-  --apple-blue: #0071e3;
-  --apple-green: #34c759;
-  --apple-red: #ff3b30;
-  --apple-line: rgba(0, 0, 0, .08);
+  --apple-muted: #515158;
+  --apple-subtle: #6e6e73;
+  --apple-blue: #0066cc;
+  --apple-green: #248a3d;
+  --apple-red: #d70015;
+  --apple-line: rgba(0, 0, 0, .12);
   --apple-shadow: 0 4px 18px rgba(0, 0, 0, .06);
   --apple-radius: 18px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --apple-bg: #111113;
+  --apple-surface: #1c1c1e;
+  --apple-surface-muted: #2c2c2e;
+  --apple-input: #2c2c2e;
+  --apple-text: #f5f5f7;
+  --apple-muted: #d1d1d6;
+  --apple-subtle: #a1a1a6;
+  --apple-blue: #0a84ff;
+  --apple-green: #30d158;
+  --apple-red: #ff453a;
+  --apple-line: rgba(255, 255, 255, .14);
+  --apple-shadow: 0 4px 18px rgba(0, 0, 0, .24);
 }
 
 html, body { min-width: 0; }
@@ -19,6 +40,12 @@ body {
   padding: 24px clamp(14px, 4vw, 48px) !important;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif !important;
 }
+body, body * { color: inherit; }
+a { color: var(--apple-blue) !important; }
+::placeholder { color: var(--apple-subtle) !important; opacity: 1; }
+small, .muted, .form-hint, .hint, .subtitle, .section-subtitle { color: var(--apple-muted) !important; }
+.form-label, label { color: var(--apple-text) !important; }
+strong, b, .title, .section-title, .hero-val, .hero-label { color: var(--apple-text) !important; }
 .bg-webgl-canvas { display: none !important; }
 .app-container { max-width: 1120px !important; gap: 20px !important; }
 .header, .account-selector-section, .ms-toolbar, .section-card, .hero-card,
@@ -30,8 +57,28 @@ body {
   backdrop-filter: none !important;
 }
 .header { padding: 18px 22px !important; }
-.title, .section-title, .hero-val, .hero-label { color: var(--apple-text) !important; }
 .title { letter-spacing: -.025em; font-weight: 650; }
+.header *, .account-selector-section *, .ms-toolbar *, .section-card *, .hero-card *, .modal-box *, .config-panel *, .account-card *, .action-modal-box * { color: var(--apple-text); }
+.header small, .account-selector-section small, .ms-toolbar small, .section-card small, .hero-card small,
+.modal-box small, .config-panel small, .account-card small, .action-modal-box small,
+.header .form-hint, .section-card .form-hint, .modal-box .form-hint { color: var(--apple-muted) !important; }
+.header .status-dot, .status-ok, .text-success { color: var(--apple-green) !important; }
+.status-error, .text-danger, .error { color: var(--apple-red) !important; }
+.hero-card .hero-caption, .account-meta, .section-description, .card-description { color: var(--apple-muted) !important; }
+:root[data-theme="dark"] .header, :root[data-theme="dark"] .account-selector-section, :root[data-theme="dark"] .ms-toolbar,
+:root[data-theme="dark"] .section-card, :root[data-theme="dark"] .hero-card, :root[data-theme="dark"] .modal-box,
+:root[data-theme="dark"] .config-panel, :root[data-theme="dark"] .account-card, :root[data-theme="dark"] .action-modal-box {
+  background: var(--apple-surface) !important;
+}
+:root[data-theme="dark"] .btn-secondary { background: var(--apple-surface-muted) !important; }
+:root[data-theme="dark"] input, :root[data-theme="dark"] select, :root[data-theme="dark"] textarea { background: var(--apple-input) !important; }
+:root[data-theme="dark"] .form-select option { background: var(--apple-surface) !important; color: var(--apple-text) !important; }
+.btn-secondary { background: var(--apple-surface) !important; }
+:root[data-theme="dark"] .glass-surface, :root[data-theme="dark"] .glass-surface .card-inner,
+:root[data-theme="dark"] .glass-surface .acc-stat-box, :root[data-theme="dark"] .glass-surface .browser-metric-row,
+:root[data-theme="dark"] .glass-surface .timeline-item, :root[data-theme="dark"] .glass-surface .diag-item-card,
+:root[data-theme="dark"] .glass-surface .step-action-box { background: var(--apple-surface-muted) !important; border-color: var(--apple-line) !important; }
+.title, .section-title, .hero-val, .hero-label { color: var(--apple-text) !important; }
 .hero-grid { gap: 16px !important; }
 .hero-card { min-height: 168px; padding: 22px !important; transition: transform 300ms cubic-bezier(.25,.1,.25,1), box-shadow 300ms cubic-bezier(.25,.1,.25,1); }
 .hero-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.1) !important; }
@@ -42,7 +89,7 @@ body {
 .btn-primary { background: var(--apple-blue) !important; color: #fff !important; border-color: var(--apple-blue) !important; }
 .btn-danger { background: var(--apple-red) !important; color: #fff !important; border-color: var(--apple-red) !important; }
 .btn-secondary { background: #fff !important; color: var(--apple-text) !important; border-color: var(--apple-line) !important; }
-input, select, textarea { background: var(--apple-bg) !important; color: var(--apple-text) !important; border: 1px solid var(--apple-line) !important; border-radius: 12px !important; transition: all 300ms cubic-bezier(.25,.1,.25,1) !important; }
+input, select, textarea { background: var(--apple-input) !important; color: var(--apple-text) !important; border: 1px solid var(--apple-line) !important; border-radius: 12px !important; transition: all 300ms cubic-bezier(.25,.1,.25,1) !important; }
 input:focus, select:focus, textarea:focus { border-color: var(--apple-blue) !important; box-shadow: 0 0 0 3px rgba(0,113,227,.18) !important; }
 .section-card { padding: clamp(18px, 3vw, 30px) !important; }
 .account-selector-bar, .ms-toolbar, .section-header, .header-top-bar { gap: 12px; }
@@ -67,6 +114,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--apple-blue) !imp
   .section-title { font-size: 17px !important; }
   .modal-box { width: calc(100vw - 20px) !important; max-height: 92vh; overflow: auto; }
 }
+
+#btn-theme-toggle { width: 40px; min-width: 40px; height: 40px; padding: 0 !important; font-size: 19px; }
+body.mouse-follow-enabled .glass-surface::before { display: none !important; }
+.glass-surface::before, .glass-surface::after, .hero-card::before, .hero-card::after { display: none !important; box-shadow: none !important; }
+.card-tilt-enabled .glass-surface { transform: none !important; }
+
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
