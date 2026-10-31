@@ -1,0 +1,73 @@
+/* Apple 风格控制台覆盖层：保留既有 DOM 与事件，仅统一视觉和响应式行为。 */
+:root {
+  --apple-bg: #f5f5f7;
+  --apple-surface: #ffffff;
+  --apple-text: #1d1d1f;
+  --apple-muted: #6e6e73;
+  --apple-blue: #0071e3;
+  --apple-green: #34c759;
+  --apple-red: #ff3b30;
+  --apple-line: rgba(0, 0, 0, .08);
+  --apple-shadow: 0 4px 18px rgba(0, 0, 0, .06);
+  --apple-radius: 18px;
+}
+
+html, body { min-width: 0; }
+body {
+  background: var(--apple-bg) !important;
+  color: var(--apple-text) !important;
+  padding: 24px clamp(14px, 4vw, 48px) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif !important;
+}
+.bg-webgl-canvas { display: none !important; }
+.app-container { max-width: 1120px !important; gap: 20px !important; }
+.header, .account-selector-section, .ms-toolbar, .section-card, .hero-card,
+.modal-box, .config-panel, .account-card, .action-modal-box {
+  background: var(--apple-surface) !important;
+  border: 1px solid var(--apple-line) !important;
+  border-radius: var(--apple-radius) !important;
+  box-shadow: var(--apple-shadow) !important;
+  backdrop-filter: none !important;
+}
+.header { padding: 18px 22px !important; }
+.title, .section-title, .hero-val, .hero-label { color: var(--apple-text) !important; }
+.title { letter-spacing: -.025em; font-weight: 650; }
+.hero-grid { gap: 16px !important; }
+.hero-card { min-height: 168px; padding: 22px !important; transition: transform 300ms cubic-bezier(.25,.1,.25,1), box-shadow 300ms cubic-bezier(.25,.1,.25,1); }
+.hero-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.1) !important; }
+.hero-claimable-card { cursor: pointer; }
+.hero-claimable-card:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(0,113,227,.3); outline-offset: 2px; }
+.btn { border-radius: 999px !important; font-weight: 600 !important; transition: all 300ms cubic-bezier(.25,.1,.25,1) !important; }
+.btn:active, .hero-claimable-card:active, .account-card:active { transform: scale(.98); }
+.btn-primary { background: var(--apple-blue) !important; color: #fff !important; border-color: var(--apple-blue) !important; }
+.btn-danger { background: var(--apple-red) !important; color: #fff !important; border-color: var(--apple-red) !important; }
+.btn-secondary { background: #fff !important; color: var(--apple-text) !important; border-color: var(--apple-line) !important; }
+input, select, textarea { background: var(--apple-bg) !important; color: var(--apple-text) !important; border: 1px solid var(--apple-line) !important; border-radius: 12px !important; transition: all 300ms cubic-bezier(.25,.1,.25,1) !important; }
+input:focus, select:focus, textarea:focus { border-color: var(--apple-blue) !important; box-shadow: 0 0 0 3px rgba(0,113,227,.18) !important; }
+.section-card { padding: clamp(18px, 3vw, 30px) !important; }
+.account-selector-bar, .ms-toolbar, .section-header, .header-top-bar { gap: 12px; }
+.account-selector-section, .ms-toolbar { padding: 12px 16px !important; }
+.account-selector-bar { overflow-x: auto; scrollbar-width: thin; }
+.hero-account-breakdown, .stamps-account-list, .task-grid, .accounts-grid { min-width: 0; }
+
+@media (max-width: 760px) {
+  body { padding: 10px !important; }
+  .app-container { gap: 12px !important; }
+  .header { padding: 14px !important; }
+  .header-top-bar, .header-right-group, .ms-toolbar, .section-header { align-items: stretch !important; flex-direction: column !important; }
+  .header-right-group, .header-actions, .ms-toolbar-actions, .accounts-header-actions, .task-header-actions { width: 100%; flex-wrap: wrap; }
+  .header-actions .btn, .ms-toolbar-actions .btn, .accounts-header-actions .btn, .task-header-actions .btn { flex: 1 1 140px; min-height: 42px; }
+  .hero-grid { grid-template-columns: 1fr !important; }
+  .hero-card { min-height: 132px; }
+  .hero-val { font-size: clamp(30px, 9vw, 48px) !important; }
+  .accounts-grid, .task-grid { grid-template-columns: 1fr !important; }
+  .history-controls, .pill-group { width: 100%; }
+  .pill-group { display: flex; }
+  .pill-btn { flex: 1; min-height: 40px; }
+  .section-title { font-size: 17px !important; }
+  .modal-box { width: calc(100vw - 20px) !important; max-height: 92vh; overflow: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

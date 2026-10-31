@@ -7,6 +7,7 @@ const appJs = fs.readFileSync(new URL('../src/web/public/app.js', import.meta.ur
 const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 const serverJs = fs.readFileSync(new URL('../src/web/server.js', import.meta.url), 'utf-8');
 const styleCss = fs.readFileSync(new URL('../src/web/public/style.css', import.meta.url), 'utf-8');
+const appleCss = fs.readFileSync(new URL('../src/web/public/apple-overrides.css', import.meta.url), 'utf-8');
 const webglJs = fs.readFileSync(new URL('../src/web/public/webgl-bg.js', import.meta.url), 'utf-8');
 
 test('v1.7.7 删除顶部重复编辑按钮，只保留任务清单编辑入口', () => {
@@ -20,6 +21,14 @@ test('登录窗口首屏使用 cn.bing.com，积分搜索入口保持独立', ()
   assert.ok(loginWindowJs.includes("LOGIN_HOME_URL = 'https://cn.bing.com'"));
   assert.ok(indexHtml.includes('https://rewards.bing.com/dashboard'));
   assert.equal(indexHtml.includes('浏览器 cn.bing.com 的完整 Cookie'), false);
+});
+
+test('Apple 风格覆盖层已加载并包含移动端布局约束', () => {
+  assert.ok(indexHtml.includes('apple-overrides.css'));
+  assert.match(appleCss, /--apple-bg: #f5f5f7/);
+  assert.match(appleCss, /--apple-blue: #0071e3/);
+  assert.match(appleCss, /@media \(max-width: 760px\)/);
+  assert.doesNotMatch(appleCss, /bg-gradient|shadow-2xl|shadow-inner/);
 });
 
 test('发布版本号在 package 与 Web 服务端保持一致', () => {

@@ -1048,29 +1048,40 @@ class BrowserManager extends EventEmitter {
       const { context } = await this.launchBrowser(acc);
       const page = await this.createPage(context);
       await page.goto('https://rewards.bing.com/dashboard', { waitUntil: 'domcontentloaded', timeout: 45000 });
-      // 等待 React 页面水合完成
-      await this.delay(3500);
+      // React 页面按需渲染：等待目标按钮出现，不使用固定 3.5 秒阻塞。
+      await page.locator('button, [role="button"]').filter({ hasText: /可领取|领取额外积分|领取积分|claim|collect/i }).first().waitFor({ state: 'visible', timeout: 12000 }).catch(() => {});
 
       // 必须精确锁定 button，不能使用 div:has-text，否则会命中最外层的整个页面根 div 导致点击无效
-      const cardBtn = page.locator('button').filter({ hasText: '可领取' }).first();
+      const cardBtn = page.locator('button, [role="button"]').filter({ hasText: /可领取|领取额外积分|领取积分|claim|collect/i }).first();
       if ((await cardBtn.count()) > 0) {
         const text = await cardBtn.innerText().catch(() => '');
-        const m = text.match(/可领取[\s\S]*?(\d+)/) || text.match(/(\d+)/);
+        const m = text.match(/(?:可领取|领取积分|claim|collect)[\s\S]*?(\d+)/i) || text.match(/(\d+)/);
         const pts = m ? parseInt(m[1], 10) : 0;
         if (pts > 0) {
           logger.log('🎁', `账号 [${accName}] 发现 ${pts} 点待领取积分，正在触发自动领取...`, '', accName);
+          await cardBtn.scrollIntoViewIfNeeded().catch(() => {});
           await cardBtn.click({ timeout: 6000 });
-          await this.delay(2000);
 
           let hasMore = true;
           let rounds = 0;
           while (hasMore && rounds < 5) {
             rounds++;
-            const confirmBtn = page.locator('div[role="dialog"] button, button').filter({ hasText: /领取积分/ }).first();
+            const confirmBtn = page.locator('div[role="dialog"] button, div[role="dialog"] [role="button"], button').filter({ hasText: /领取积分|确认领取|立即领取|claim|collect/i }).first();
             if ((await confirmBtn.count()) > 0 && await confirmBtn.isVisible().catch(() => false)) {
               await confirmBtn.click({ timeout: 5000 }).catch(() => {});
-              await this.delay(2500);
-              claimed = pts;
+              const successText = page.locator('text=/已领取|领取成功|已完成|claimed|collected/i').first();
+              const hidden = cardBtn.waitFor({ state: 'hidden', timeout: 7000 }).catch(() => {});
+              const success = successText.waitFor({ state: 'visible', timeout: 7000 }).catch(() => {});
+              await Promise.race([hidden, success]);
+              const afterText = await cardBtn.innerText().catch(() => '');
+              const bodyText = await page.locator('body').innerText().catch(() => '');
+              if (/已领取|领取成功|已完成|claimed|collected/i.test(`${afterText} ${bodyText}`) || !(await cardBtn.isVisible().catch(() => true))) {
+                claimed = pts;
+              } else if (rounds < 2) {
+                // 微软偶尔丢掉第一次点击，短暂退避后只重试一次，避免反复触发风控。
+                await this.delay(800);
+                await cardBtn.click({ timeout: 5000 }).catch(() => {});
+              }
             } else {
               hasMore = false;
             }
