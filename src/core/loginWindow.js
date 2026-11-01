@@ -57,6 +57,19 @@ function safeAccountId(accountId) {
   return String(accountId || 'default').replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
+/**
+ * 解析登录窗口要绑定的账号。
+ * 配置向导用的是「预分配 id 但还没保存」的账号，这种 id 在配置里查不到，
+ * 不能当成错误——否则向导里点「打开登录窗口」会直接报「账号不存在」。
+ * 返回 isDraft=true 表示这是草稿会话：只用它开浏览器/隔离 profile，不读写账号配置。
+ */
+export function resolveLoginAccount(accountId) {
+  const id = accountId ? String(accountId).trim() : '';
+  if (!id) return { id: '', acc: null, isDraft: false };
+  const acc = configManager.findAccount(id);
+  return { id, acc, isDraft: !acc };
+}
+
 function loginTimeoutMin() {
   // EPIC_LOGIN_TIMEOUT_MIN 是旧版（Epic 登录窗口）留下的环境变量名，
   // 这里保留兼容，避免老用户的 compose 升级后突然失去自动关闭保护。
@@ -139,10 +152,12 @@ class LoginWindow {
       throw new Error('当前进程没有可用的图形显示（DISPLAY 为空），无法打开可见浏览器。请在容器里启用可见浏览器（MSR_VISIBLE=1，需 Xvfb），或改用「粘贴完整 Cookie」的方式。');
     }
 
-    const acc = accountId ? configManager.findAccount(accountId) : null;
-    if (accountId && !acc) throw new Error('账号不存在');
+    // 配置向导用的是「预分配但尚未保存」的账号 id，这种情况必须当草稿处理：
+    // 照常开浏览器，只是不读写账号配置（真正建号由向导最后一步完成）。
+    const { id: targetAccountId, acc, isDraft } = resolveLoginAccount(accountId);
+    this.draftMode = isDraft;
 
-    const sessionAccountId = accountId || `${LOGIN_STARTUP_ID}-${Date.now()}`;
+    const sessionAccountId = targetAccountId || `${LOGIN_STARTUP_ID}-${Date.now()}`;
     const owner = `ms-login:${sessionAccountId}:${Date.now()}`;
     const gotSlot = await browserSlotLock.acquire(owner, 5000);
     if (!gotSlot) {
@@ -185,7 +200,7 @@ class LoginWindow {
         ...(browserProxy ? { proxy: browserProxy } : {})
       });
 
-      this.accountId = accountId || null;
+      this.accountId = targetAccountId || null;
       this.sessionAccountId = sessionAccountId;
       this.startedAt = Date.now();
       this.loggedIn = false;
@@ -330,9 +345,7 @@ class LoginWindow {
     if (accountId && this.accountId && accountId !== this.accountId) {
       throw new Error('当前浏览器登录窗口属于另一个账号，请先关闭后再重试');
     }
-    const targetId = accountId || this.accountId;
-    const acc = targetId ? configManager.findAccount(targetId) : null;
-    if (targetId && !acc) throw new Error('账号不存在');
+    const { id: targetId, acc, isDraft } = resolveLoginAccount(accountId || this.accountId);
 
     this.lastAction = '正在读取浏览器 Cookie...';
     const rawCookie = await this.readCookieString();
@@ -354,7 +367,7 @@ class LoginWindow {
     }
 
     this.lastAction = '正在用这套 Cookie 校验登录态...';
-    const status = await authManager.checkCookieStatus(analysis.cookie, targetId || undefined);
+    const status = await authManager.checkCookieStatus(analysis.cookie, isDraft ? undefined : (targetId || undefined));
 
     if (!status.valid) {
       this.lastAction = '校验未通过，窗口保持打开';
@@ -364,6 +377,26 @@ class LoginWindow {
         hasU: true,
         missing: analysis.missing,
         message: `${status.message}${status.message?.includes('缺少') ? '' : `（${describeCookieProblem(analysis)}）`}`
+      };
+    }
+
+    // 草稿会话（配置向导里还没保存的新账号）只把 Cookie 交回前端，
+    // 由向导最后一步统一建号，避免取消向导时留下半成品账号。
+    if (isDraft) {
+      await this.close('draft');
+      logger.log('🔵', `已从登录窗口取到草稿 Cookie：${describeCookieProblem(analysis)}（尚未写入账号配置）`);
+      return {
+        valid: true,
+        draft: true,
+        accountId: '',
+        cookie: analysis.cookie,
+        hasU: true,
+        cookieCount: analysis.cookieCount,
+        added: analysis.added,
+        missing: analysis.missing,
+        balance: status.balance,
+        userName: status.userName,
+        message: `已获取 ${analysis.cookieCount} 个 Cookie，点「下一步」完成建号${status.userName ? `（${status.userName}）` : ''}`
       };
     }
 

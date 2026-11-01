@@ -79,6 +79,26 @@ test('缺少 _U 但能从 SRCHUID / _EDGE_S 交叉验证时会自动补齐', asy
   });
 });
 
+test('配置向导里未保存的账号按草稿处理，不报「账号不存在」', async () => {
+  await withServer(async (base) => {
+    const { resolveLoginAccount } = await import('../src/core/loginWindow.js');
+
+    // 向导生成的预分配 id：配置里还没有这个账号
+    const draft = resolveLoginAccount(`acc_${Date.now()}`);
+    assert.equal(draft.isDraft, true, '未保存的账号必须被识别为草稿，否则向导开登录窗口会直接报错');
+    assert.equal(draft.acc, null);
+
+    // 已存在的账号仍然是正常账号（保存时写回配置）
+    const created = await post(base, '/api/accounts', { name: '草稿判定账号', cookie: `_U=${GUID_A}; MUID=m1` });
+    const existing = resolveLoginAccount(created.data.id);
+    assert.equal(existing.isDraft, false);
+    assert.equal(existing.acc.id, created.data.id);
+
+    // 不指定账号（快速入口）既不是草稿也不是已有账号
+    assert.equal(resolveLoginAccount(null).isDraft, false);
+  });
+});
+
 test('保存账号时 Cookie 会被规范化后落库，并把诊断回给前端', async () => {
   await withServer(async (base) => {
     const created = await post(base, '/api/accounts', {

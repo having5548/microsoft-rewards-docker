@@ -1446,7 +1446,10 @@ function openNovncModal({ title = '内嵌浏览器', url = '', showSave = false 
   if (saveBtn) saveBtn.style.display = showSave ? 'inline-flex' : 'none';
   novncBaseUrl = url || novncBaseUrl || '';
   const frame = document.getElementById('novnc-frame');
-  if (frame) frame.src = buildNovncUrl(novncBaseUrl, Date.now());
+  if (frame) {
+    frame.style.display = 'block';
+    frame.src = buildNovncUrl(novncBaseUrl, Date.now());
+  }
   openModal('novnc-modal');
 }
 
@@ -1609,6 +1612,12 @@ async function openCookieLoginWindow(scope = 'settings', targetInputId = null) {
     startCookieLoginPolling();
   } catch (e) {
     stopCookieLoginPolling();
+    // 启动失败时把 iframe 收起来，否则小窗里是一整块黑屏，看着像页面坏了
+    const frame = document.getElementById('novnc-frame');
+    if (frame) {
+      frame.removeAttribute('src');
+      frame.style.display = 'none';
+    }
     setLoginWindowStatus({
       badge: '启动失败',
       badgeCls: 'err',
