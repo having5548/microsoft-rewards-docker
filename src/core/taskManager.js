@@ -1833,7 +1833,7 @@ export class TaskManager {
       accStats.streakDays = streakInfo.streakDays;
       logger.log('🔥', `连续打卡记录: ${accStats.streakDays} 天`, accountName);
     }
-    await this.claimExtraPointsAfterTasks(acc, accStats);
+    await this.claimExtraPointsAfterTasks(accCfg, accStats);
 
     // 6. 结算单账号总积分
     // 余额与「今日已增」都以官网为准：这里再取一次，把本轮新做的部分算进去
