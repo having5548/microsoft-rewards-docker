@@ -11,6 +11,11 @@ on:
         required: false
         type: boolean
         default: true
+      mirror_tags:
+        description: '额外同步到阿里云 ACR 的已发布 tag（逗号分隔，如 1.9.4,1.9,latest；留空则用本次构建产生的 tag）'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build-and-push:
@@ -131,22 +136,47 @@ jobs:
         if: steps.acr.outputs.enabled == 'true'
         env:
           ACR_REPO: crpi-rre8ue869ess1fih.cn-shanghai.personal.cr.aliyuncs.com/root_having5548/msreward
+          GHCR_REPO: ghcr.io/${{ github.repository }}
           GHCR_TAGS: ${{ steps.meta.outputs.tags }}
+          MIRROR_TAGS: ${{ inputs.mirror_tags }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           # GHCR 的多架构清单里挂着 buildx 的 attestation（platform 为 unknown 的 OCI 空描述符），
           # 阿里云个人版会以 "unknown manifest class" 403 拒绝，所以只挑真实平台的子清单重建索引。
+          # 跨云复制大层时偶发 HTTP2 PROTOCOL_ERROR，因此每个 tag 单独重试。
+          if [ -n "${MIRROR_TAGS}" ]; then
+            refs=$(printf '%s\n' "$MIRROR_TAGS" | tr ',' '\n' \
+              | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | sed '/^$/d' \
+              | sed "s#^#${GHCR_REPO}:#" | sort -u)
+          else
+            refs=$(printf '%s\n' "$GHCR_TAGS" | sed '/^[[:space:]]*$/d' | sort -u)
+          fi
+
+          failed_tags=""
           while IFS= read -r ref; do
             tag="${ref##*:}"
             repo="${ref%:*}"
-            sources=$(docker buildx imagetools inspect --raw "$ref" \
-              | jq -r --arg repo "$repo" \
-                '(.manifests // [])[] | select((.platform.os // "") != "unknown") | "\($repo)@\(.digest)"')
-            if [ -z "$sources" ]; then
-              echo "::warning::${ref} 没有可用的平台子清单，跳过"
-              continue
+            ok=0
+            for attempt in 1 2 3; do
+              sources=$(docker buildx imagetools inspect --raw "$ref" 2>/dev/null \
+                | jq -r --arg repo "$repo" \
+                  '(.manifests // [])[] | select((.platform.os // "") != "unknown") | "\($repo)@\(.digest)"')
+              if [ -z "$sources" ]; then
+                echo "::warning::${ref} 没有可用的平台子清单（第 ${attempt} 次）"
+              elif docker buildx imagetools create -t "${ACR_REPO}:${tag}" $sources; then
+                echo "::notice::已同步 ${ACR_REPO}:${tag}"
+                ok=1
+                break
+              fi
+              sleep $((attempt * 10))
+            done
+            if [ "$ok" != "1" ]; then
+              failed_tags="${failed_tags} ${tag}"
             fi
-            echo "::notice::同步 ${ref} -> ${ACR_REPO}:${tag}"
-            # 多个 @sha256 源必须按空格拆成独立参数
-            docker buildx imagetools create -t "${ACR_REPO}:${tag}" $sources
-          done < <(printf '%s\n' "$GHCR_TAGS" | sed '/^[[:space:]]*$/d' | sort -u)
+          done <<< "$refs"
+
+          if [ -n "${failed_tags}" ]; then
+            echo "::error::以下 tag 同步到阿里云 ACR 失败:${failed_tags}"
+            exit 1
+          fi
+          echo "::notice::全部 tag 已同步到阿里云 ACR"
