@@ -1532,9 +1532,11 @@ function startCookieLoginPolling() {
       const saveBtn = document.getElementById('btn-novnc-save-cookie');
       if (d.loggedIn) {
         setLoginWindowStatus({
-          badge: '已登录',
+          badge: d.dashboardVisited ? '已登录' : '已登录 · 即将跳转',
           badgeCls: 'ok',
-          action: d.lastAction || '已检测到登录态，可以点右下角「保存并填入 Cookie」',
+          action: d.lastAction || (d.dashboardVisited
+            ? '已进入 rewards 面板，可以点右下角「保存并填入 Cookie」'
+            : '登录成功，正在等待 5 秒后自动打开 rewards 面板补齐 Cookie…'),
           cookies: `已检测到登录态（${Number(d.cookieCount || 0)} 个 Cookie）${d.userName ? ` · ${d.userName}` : ''}`,
           error: ''
         });
@@ -1604,8 +1606,8 @@ async function openCookieLoginWindow(scope = 'settings', targetInputId = null) {
     setLoginWindowStatus({
       badge: '等待登录',
       badgeCls: 'idle',
-      action: '请在小窗里登录微软账号，登录后停留 3 秒再点右下角保存',
-      cookies: '',
+      action: '请在小窗里登录微软账号；登录成功后会自动等 5 秒再打开 rewards 面板补齐 Cookie，等面板加载完再点右下角保存',
+      cookies: '只登录 cn.bing.com 拿到的 Cookie 不全，必须再进一次 rewards.bing.com/dashboard',
       error: ''
     });
     resetLoginWindowSaveButton(true);
@@ -1666,7 +1668,7 @@ async function saveCookieFromLoginWindow() {
         error: [
           d.message || 'Cookie 不完整',
           missing.length ? `缺少：${missing.join('、')}` : '',
-          '请在小窗里登录后停留 3 秒再点保存。'
+          '请确认已经登录，并等 rewards.bing.com/dashboard 加载完成后再点保存。'
         ].filter(Boolean).join(' ')
       });
       if (saveBtn) {

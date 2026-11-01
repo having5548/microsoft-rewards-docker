@@ -74,10 +74,11 @@ docker compose logs -f        # 看到「Web 控制台已启动」即可
 
 配置中心 → 「🌐 打开登录窗口自动获取 Cookie」：
 
-1. 弹出的小窗是容器里那台 Chromium 的真实画面；
+1. 弹出的小窗是容器里那台 Chromium 的真实画面，首屏是 `cn.bing.com`；
 2. 在小窗里登录微软账号，等右上角出现头像 / 积分；
-3. 点小窗底部「✅ 保存并填入 Cookie」，后端抓 Cookie → 校验 → 写入账号；
-4. 校验没过时窗口不会关，可以继续在窗口里处理。
+3. 登录成功后小窗会**自动等 5 秒，再打开 `rewards.bing.com/dashboard`** —— 只停在 cn.bing.com 拿到的 Cookie 是不全的，必须让 rewards 面板自己下发会话项。等面板加载完（能看到你的积分）再进下一步；
+4. 点小窗底部「✅ 保存并填入 Cookie」，后端抓 Cookie → 校验 → 写入账号（若你抢在跳转前点保存，后端会先自动补跳一次面板）；
+5. 校验没过时窗口不会关，可以继续在窗口里处理。
 
 不想用登录窗口（比如纯无头部署）也可以手工粘贴，见下面「Cookie 与登录窗口」。
 
@@ -120,7 +121,7 @@ docker run -d \
 docker pull crpi-rre8ue869ess1fih.cn-shanghai.personal.cr.aliyuncs.com/root_having5548/msreward:latest
 ```
 
-把上面 `docker run` / compose 里的镜像地址换成它即可，tag 与 GHCR 完全一致（`latest`、`1.9`、`1.9.6`）。该仓库为公开仓库，拉取不需要登录；推送凭据只存放在 CI 的仓库 Secrets 中，不随代码分发。
+把上面 `docker run` / compose 里的镜像地址换成它即可，tag 与 GHCR 完全一致（`latest`、`1.9`、`1.9.7`）。该仓库为公开仓库，拉取不需要登录；推送凭据只存放在 CI 的仓库 Secrets 中，不随代码分发。
 
 ### 群晖 / 威联通 / 极空间 / 绿联 / 飞牛
 
@@ -270,7 +271,7 @@ docker compose up -d         # 只重建有变化的容器（data 卷不动，�
 
 - 确认版本：`curl -s http://127.0.0.1:5308/api/status | grep -o '"version":"[^"]*"'`，控制台头部胶囊也显示同一个版本号（由服务端下发，不会和镜像脱节）；
 - **回滚**：把 `image:` 换成固定 tag（如 `:1.9.2`）再 `docker compose up -d`；
-- **镜像 tag**：`latest`（跟随 main）、`1.9`、`1.9.6`；每次打 tag 会同时创建 GitHub Release。
+- **镜像 tag**：`latest`（跟随 main）、`1.9`、`1.9.7`；每次打 tag 会同时创建 GitHub Release。
 - **两个仓库同步发布**：GHCR 与阿里云 ACR 的 tag 完全一致，选一个能拉动的即可。
 
 ---

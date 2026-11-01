@@ -38,6 +38,14 @@ const DEFAULT_TIMEOUT_MIN = 30;
 /** 登录成功后需要停留这么久，等微软把 identity cookie 全部种完再保存 */
 const SETTLE_MS = 1500;
 const LOGIN_HOME_URL = 'https://cn.bing.com';
+/**
+ * 登录成功后不能只停在 cn.bing.com：那个页面只会种下 bing 域的 Cookie，
+ * rewards 面板还需要它自己在 rewards.bing.com 下发的会话项（以及 profile 接口写入的账号态）。
+ * 所以登录检测到之后再等 5 秒（等微软把 identity cookie 写完），然后自动进面板补齐。
+ */
+const REWARDS_DASHBOARD_URL = 'https://rewards.bing.com/dashboard';
+const POST_LOGIN_WAIT_MS = 5000;
+export { REWARDS_DASHBOARD_URL, POST_LOGIN_WAIT_MS };
 const LOGIN_STARTUP_ID = `new-${process.pid}-${Date.now()}`;
 
 export const LOGIN_WINDOW_URL = '/novnc/vnc.html?autoconnect=1&resize=scale&path=websockify';
@@ -95,6 +103,9 @@ class LoginWindow {
     this.missing = [];
     this.slotOwner = null;
     this.closing = false;
+    this.dashboardVisited = false;
+    this.dashboardPending = false;
+    this.dashboardTimer = null;
     this.proxyBridge = null;
     this.openPromise = null;
     this.closePromise = null;
@@ -115,6 +126,7 @@ class LoginWindow {
       userName: this.userName,
       missing: this.missing,
       lastAction: this.lastAction,
+      dashboardVisited: this.dashboardVisited,
       startedAt: this.startedAt,
       elapsedSec: this.startedAt ? Math.round((Date.now() - this.startedAt) / 1000) : 0,
       timeoutMin: loginTimeoutMin()
@@ -272,9 +284,13 @@ class LoginWindow {
         this.hasU = !!(map.get('_U') || '').trim();
         this.missing = ['_U', 'MUID', 'RPSSecAuth'].filter(name => !map.has(name));
         this.loggedIn = map.size > 0 && this.hasU;
-        this.lastAction = this.loggedIn
-          ? `已检测到登录态（${map.size} 个 Cookie），若刚刚登录请停留 2 秒再点保存`
-          : `等待登录...（当前 ${map.size} 个 Cookie${map.size ? '，尚未拿到 _U' : ''}）`;
+        if (this.loggedIn && !this.dashboardVisited) {
+          // 只停在 cn.bing.com 拿到的 Cookie 不全（缺少 rewards 域下的会话项），
+          // 必须再进一次 rewards 面板，这里 5 秒后自动跳转，跳转失败也不阻塞用户手动保存。
+          this.scheduleDashboardVisit();
+        } else if (!this.dashboardVisited) {
+          this.lastAction = `等待登录...（当前 ${map.size} 个 Cookie${map.size ? '，尚未拿到 _U' : ''}）`;
+        }
         if (this.loggedIn && !this.userName) {
           const wls = String(map.get('WLS') || '');
           const match = wls.match(/N=([^&;]+)/);
@@ -295,6 +311,41 @@ class LoginWindow {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+    }
+  }
+
+  /** 登录成功后 5 秒再跳 rewards 面板：等微软把 identity cookie 写完，过早跳会拿到半个登录态 */
+  scheduleDashboardVisit() {
+    if (this.dashboardVisited || this.dashboardPending || this.dashboardTimer) return;
+    this.dashboardPending = true;
+    const waitSec = Math.round(POST_LOGIN_WAIT_MS / 1000);
+    this.lastAction = `已检测到登录，${waitSec} 秒后自动打开 rewards.bing.com/dashboard 补齐 Cookie…`;
+    logger.log('🌐', `登录窗口已检测到登录态，${waitSec} 秒后跳转 rewards 面板补齐 Cookie`);
+    this.dashboardTimer = setTimeout(() => {
+      this.dashboardTimer = null;
+      this.visitDashboard().catch(() => {});
+    }, POST_LOGIN_WAIT_MS);
+    this.dashboardTimer.unref?.();
+  }
+
+  /** 真正跳转到 rewards 面板（保存前也会兜底调一次，避免用户没等跳转就点保存） */
+  async visitDashboard() {
+    if (this.dashboardVisited) return true;
+    if (!this.context || this.closing) return false;
+    const page = this.page || this.context.pages()[0];
+    if (!page) return false;
+    this.dashboardPending = false;
+    this.lastAction = '正在打开 rewards.bing.com/dashboard 补齐登录 Cookie…';
+    try {
+      await page.goto(REWARDS_DASHBOARD_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      this.dashboardVisited = true;
+      this.lastAction = '已进入 rewards 面板：等页面加载完再点「保存并填入 Cookie」';
+      logger.log('🌐', '登录窗口已跳转到 rewards.bing.com/dashboard，等待页面加载以补齐 Cookie');
+      return true;
+    } catch (e) {
+      this.lastAction = `跳转 rewards 面板失败：${e.message}，可在小窗里手动打开 rewards.bing.com/dashboard`;
+      logger.log('🟡', `登录窗口跳转 rewards 面板失败: ${e.message}`);
+      return false;
     }
   }
 
@@ -346,6 +397,11 @@ class LoginWindow {
       throw new Error('当前浏览器登录窗口属于另一个账号，请先关闭后再重试');
     }
     const { id: targetId, acc, isDraft } = resolveLoginAccount(accountId || this.accountId);
+
+    // 用户登录后没等自动跳转就点了保存：先补一次 rewards 面板，否则拿到的 Cookie 不完整
+    if (this.loggedIn && !this.dashboardVisited) {
+      await this.visitDashboard();
+    }
 
     this.lastAction = '正在读取浏览器 Cookie...';
     const rawCookie = await this.readCookieString();
@@ -461,6 +517,12 @@ class LoginWindow {
     this.hasU = false;
     this.missing = [];
     this.closing = false;
+    this.dashboardVisited = false;
+    this.dashboardPending = false;
+    if (this.dashboardTimer) {
+      clearTimeout(this.dashboardTimer);
+      this.dashboardTimer = null;
+    }
     if (this.proxyBridge) {
       try { this.proxyBridge.close(); } catch {}
       this.proxyBridge = null;
