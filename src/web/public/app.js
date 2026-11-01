@@ -553,9 +553,9 @@ function applyTheme(theme = currentTheme) {
   if (selectElem) selectElem.value = currentTheme;
   const toggle = document.getElementById('btn-theme-toggle');
   if (toggle) {
+    // 图标由 CSS 按 data-theme 切换，这里只更新可读文案，避免重写 innerHTML 破坏 SVG
     toggle.setAttribute('aria-label', actual === 'dark' ? '切换浅色模式' : '切换暗夜模式');
     toggle.title = actual === 'dark' ? '切换浅色模式' : '切换暗夜模式';
-    toggle.innerHTML = actual === 'dark' ? '<span aria-hidden="true">☀</span>' : '<span aria-hidden="true">☾</span>';
   }
 }
 

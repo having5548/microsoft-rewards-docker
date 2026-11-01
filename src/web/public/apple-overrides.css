@@ -78,6 +78,66 @@ strong, b, .title, .section-title, .hero-val, .hero-label { color: var(--apple-t
 :root[data-theme="dark"] .glass-surface .acc-stat-box, :root[data-theme="dark"] .glass-surface .browser-metric-row,
 :root[data-theme="dark"] .glass-surface .timeline-item, :root[data-theme="dark"] .glass-surface .diag-item-card,
 :root[data-theme="dark"] .glass-surface .step-action-box { background: var(--apple-surface-muted) !important; border-color: var(--apple-line) !important; }
+
+/* 浅色模式：把基础样式里写死的深色材质全部换成同一套白色卡面，
+   否则账号卡、运行状态条、日志终端会在白底上留下突兀的深色块。 */
+:root[data-theme="light"] {
+  --card-bg: #ffffff;
+  --card-inner: #f5f5f7;
+  --border-color: rgba(0, 0, 0, .10);
+  --border-light: rgba(0, 0, 0, .18);
+  --glass-inner-surface: #f5f5f7;
+  --glass-border-soft: rgba(0, 0, 0, .08);
+  --text-main: #1d1d1f;
+  --text-sub: #515158;
+  --text-muted: #6e6e73;
+}
+:root[data-theme="light"] .glass-surface {
+  background: var(--apple-surface) !important;
+  border-color: var(--apple-line) !important;
+  box-shadow: var(--apple-shadow) !important;
+  backdrop-filter: none !important;
+}
+:root[data-theme="light"] .account-overview-card,
+:root[data-theme="light"] .acc-stat-box,
+:root[data-theme="light"] .browser-action-banner,
+:root[data-theme="light"] .browser-metric-row,
+:root[data-theme="light"] .card-inner,
+:root[data-theme="light"] .timeline-item,
+:root[data-theme="light"] .diag-item-card,
+:root[data-theme="light"] .step-action-box {
+  background: var(--apple-surface-muted) !important;
+  border-color: var(--apple-line) !important;
+  box-shadow: none !important;
+}
+:root[data-theme="light"] .browser-action-banner { border-style: dashed !important; color: var(--apple-muted) !important; }
+:root[data-theme="light"] .terminal-box,
+:root[data-theme="light"] .logs-list {
+  background: var(--apple-surface-muted) !important;
+  border-color: var(--apple-line) !important;
+  color: var(--apple-text) !important;
+}
+:root[data-theme="light"] .log-time { color: var(--apple-subtle) !important; }
+:root[data-theme="light"] .log-acc { color: var(--apple-blue) !important; }
+:root[data-theme="light"] .form-select option { background: #ffffff !important; color: var(--apple-text) !important; }
+:root[data-theme="light"] select, :root[data-theme="light"] input, :root[data-theme="light"] textarea { background: #ffffff !important; }
+
+/* 主题开关：与兄弟按钮同高、图标居中，纯 SVG 不受 emoji 基线影响 */
+#btn-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  height: 30px;
+  padding: 0 !important;
+  line-height: 1;
+  flex: 0 0 32px;
+}
+#btn-theme-toggle .theme-icon { display: block; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; fill: none; }
+#btn-theme-toggle .theme-icon-sun { display: none; }
+:root[data-theme="dark"] #btn-theme-toggle .theme-icon-sun { display: block; }
+:root[data-theme="dark"] #btn-theme-toggle .theme-icon-moon { display: none; }
 .title, .section-title, .hero-val, .hero-label { color: var(--apple-text) !important; }
 .hero-grid { gap: 16px !important; }
 .hero-card { min-height: 168px; padding: 22px !important; transition: transform 300ms cubic-bezier(.25,.1,.25,1), box-shadow 300ms cubic-bezier(.25,.1,.25,1); }
@@ -115,7 +175,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--apple-blue) !imp
   .modal-box { width: calc(100vw - 20px) !important; max-height: 92vh; overflow: auto; }
 }
 
-#btn-theme-toggle { width: 40px; min-width: 40px; height: 40px; padding: 0 !important; font-size: 19px; }
 body.mouse-follow-enabled .glass-surface::before { display: none !important; }
 .glass-surface::before, .glass-surface::after, .hero-card::before, .hero-card::after { display: none !important; box-shadow: none !important; }
 .card-tilt-enabled .glass-surface { transform: none !important; }

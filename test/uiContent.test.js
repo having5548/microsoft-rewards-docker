@@ -41,6 +41,21 @@ test('主题支持明暗切换并为两种模式定义可读颜色', () => {
   assert.match(appleCss, /--apple-text: #f5f5f7/);
 });
 
+test('主题按钮用 SVG 图标并按主题切换，避免 emoji 基线偏移', () => {
+  assert.ok(indexHtml.includes('theme-icon-moon'));
+  assert.ok(indexHtml.includes('theme-icon-sun'));
+  assert.equal(appJs.includes('toggle.innerHTML'), false);
+  assert.match(appleCss, /#btn-theme-toggle \{[^}]*align-items: center/);
+  assert.match(appleCss, /:root\[data-theme="dark"\] #btn-theme-toggle \.theme-icon-sun \{ display: block; \}/);
+});
+
+test('浅色模式不再残留深色块，日志与状态条同步换成浅色材质', () => {
+  assert.match(appleCss, /:root\[data-theme="light"\] \.terminal-box/);
+  assert.match(appleCss, /:root\[data-theme="light"\] \.browser-action-banner/);
+  assert.match(appleCss, /:root\[data-theme="light"\] \.acc-stat-box/);
+  assert.match(appleCss, /:root\[data-theme="light"\] \.glass-surface \{/);
+});
+
 test('禁用鼠标边缘高光与卡片倾斜', () => {
   assert.equal(appJs.includes('initLiquidMouseFollower'), false);
   assert.equal(appJs.includes("classList.toggle('mouse-follow-enabled'"), false);
