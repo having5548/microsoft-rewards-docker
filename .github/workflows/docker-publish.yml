@@ -139,6 +139,9 @@ jobs:
           GHCR_REPO: ghcr.io/${{ github.repository }}
           GHCR_TAGS: ${{ steps.meta.outputs.tags }}
           MIRROR_TAGS: ${{ inputs.mirror_tags }}
+          # 阿里云 ACR 的网关在 HTTP/2 上收大层会回 PROTOCOL_ERROR（stream error），
+          # 关掉 Go 的 http2 客户端让它退回 HTTP/1.1，比反复重试有效。
+          GODEBUG: http2client=0
         run: |
           set -uo pipefail
           # GHCR 的多架构清单里挂着 buildx 的 attestation（platform 为 unknown 的 OCI 空描述符），
