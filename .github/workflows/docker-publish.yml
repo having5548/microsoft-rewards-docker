@@ -32,6 +32,7 @@ jobs:
       # 注意：这是二改仓库，镜像只发布到本仓库自己的 GHCR 命名空间
       #       （ghcr.io/<owner>/<repo>）。原项目的 Docker Hub 仓库属于原作者，
       #       这里不再向 Docker Hub 推送，避免误推到别人的命名空间。
+      #       构建完成后会额外镜像一份到阿里云个人版 ACR，方便国内拉取。
       - name: Determine publish mode
         id: mode
         run: |
@@ -98,3 +99,46 @@ jobs:
             --generate-notes \
             --verify-tag \
           || echo "::warning::Release 已存在或创建失败，跳过（不影响镜像发布）"
+
+      # ---------------------------------------------------------------------
+      # 阿里云个人版 ACR 同步（国内拉取比 ghcr.io 快很多）
+      #   - 不重新构建：用 buildx imagetools 把已推好的多架构清单复制过去
+      #   - 放在 Release 之后：阿里云侧失败不会拖累 GHCR 发布与 Release
+      #   - 凭据缺失只告警跳过，fork 仓库不至于直接红
+      # ---------------------------------------------------------------------
+      - name: Check Aliyun ACR credentials
+        id: acr
+        if: steps.mode.outputs.publish == 'true'
+        env:
+          ACR_PASSWORD: ${{ secrets.ALIYUN_PASSWORD }}
+        run: |
+          if [ -n "$ACR_PASSWORD" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::未配置 ALIYUN_USERNAME / ALIYUN_PASSWORD，跳过阿里云 ACR 同步"
+          fi
+
+      - name: Log in to Aliyun Container Registry
+        if: steps.acr.outputs.enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: crpi-rre8ue869ess1fih.cn-shanghai.personal.cr.aliyuncs.com
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: Mirror image tags to Aliyun ACR
+        if: steps.acr.outputs.enabled == 'true'
+        env:
+          ACR_REPO: crpi-rre8ue869ess1fih.cn-shanghai.personal.cr.aliyuncs.com/root_having5548/msreward
+          GHCR_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r ref; do
+            if [ -z "$ref" ]; then
+              continue
+            fi
+            tag="${ref##*:}"
+            echo "::notice::同步 ${ref} -> ${ACR_REPO}:${tag}"
+            docker buildx imagetools create -t "${ACR_REPO}:${tag}" "${ref}"
+          done <<< "$GHCR_TAGS"
