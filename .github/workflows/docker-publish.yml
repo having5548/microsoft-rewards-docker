@@ -102,7 +102,7 @@ jobs:
 
       # ---------------------------------------------------------------------
       # 阿里云个人版 ACR 同步（国内拉取比 ghcr.io 快很多）
-      #   - 不重新构建：用 buildx imagetools 把已推好的多架构清单复制过去
+      #   - 不重新构建：按 GHCR 里各平台的子清单 digest 重新组装一个干净的多架构索引推过去
       #   - 放在 Release 之后：阿里云侧失败不会拖累 GHCR 发布与 Release
       #   - 凭据缺失只告警跳过，fork 仓库不至于直接红
       # ---------------------------------------------------------------------
@@ -134,11 +134,19 @@ jobs:
           GHCR_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
+          # GHCR 的多架构清单里挂着 buildx 的 attestation（platform 为 unknown 的 OCI 空描述符），
+          # 阿里云个人版会以 "unknown manifest class" 403 拒绝，所以只挑真实平台的子清单重建索引。
           while IFS= read -r ref; do
-            if [ -z "$ref" ]; then
+            tag="${ref##*:}"
+            repo="${ref%:*}"
+            sources=$(docker buildx imagetools inspect --raw "$ref" \
+              | jq -r --arg repo "$repo" \
+                '(.manifests // [])[] | select((.platform.os // "") != "unknown") | "\($repo)@\(.digest)"')
+            if [ -z "$sources" ]; then
+              echo "::warning::${ref} 没有可用的平台子清单，跳过"
               continue
             fi
-            tag="${ref##*:}"
             echo "::notice::同步 ${ref} -> ${ACR_REPO}:${tag}"
-            docker buildx imagetools create -t "${ACR_REPO}:${tag}" "${ref}"
-          done <<< "$GHCR_TAGS"
+            # 多个 @sha256 源必须按空格拆成独立参数
+            docker buildx imagetools create -t "${ACR_REPO}:${tag}" $sources
+          done < <(printf '%s\n' "$GHCR_TAGS" | sed '/^[[:space:]]*$/d' | sort -u)
