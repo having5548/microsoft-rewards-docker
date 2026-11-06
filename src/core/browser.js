@@ -34,6 +34,19 @@ import { findChromiumExecutable } from './chromiumExecutable.js';
 import { prepareBrowserProxy } from './localProxyBridge.js';
 import { sanitizeCookiesForBrowser } from './cookieAssistant.js';
 
+/**
+ * 从「可领取」卡片的整段文本里解析积分数。
+ * 真实文本形如：`可领取\n\n1,012\n\n领取`，数字带千分位——
+ * 旧实现用 (\d+) 会只拿到第一个 1，把 1,012 读成 1，导致永远领不到还反复触发。
+ */
+export function parsePointsFromCardText(text) {
+  const m = String(text || '').replace(/[\s\u00a0]/g, ' ').match(/(\d[\d,]*)/);
+  if (!m) return 0;
+  const n = Number(m[1].replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+
 export function classifyBingLoginState(signals = {}) {
   const userName = [signals.idN, signals.idA, signals.idName]
     .map(value => String(value || '').trim())
@@ -1038,6 +1051,25 @@ class BrowserManager extends EventEmitter {
   /**
    * 打开 rewards.bing.com/dashboard 领取待领取的额外积分
    */
+  /**
+   * 读取 dashboard 顶部「可领取」卡片的数值。
+   * 页面结构：整张卡片是一个 <button>，里面有 <p class="text-labelControl">可领取</p>
+   * 和 <p class="text-pageHeader">1,012</p>（带千分位）。
+   * 返回 null 表示找不到这张卡片（全部领完时卡片会消失），0 表示明确为 0。
+   */
+  async readClaimablePoints(page) {
+    const raw = await page.evaluate(() => {
+      const nodes = Array.from(document.querySelectorAll('p, span'));
+      const label = nodes.find(el => el.children.length === 0 && (el.textContent || '').replace(/\s+/g, '') === '可领取');
+      if (!label) return { found: false, text: '' };
+      const card = label.closest('button') || label.closest('[role="button"]') || label.closest('div');
+      return { found: true, text: (card?.innerText || '') };
+    }).catch(() => null);
+    if (!raw) return null;
+    if (!raw.found) return null;
+    return parsePointsFromCardText(raw.text);
+  }
+
   async claimDashboardPoints(acc) {
     const accName = acc?.name || '当前账号';
     const execPath = this.getExecutablePath();
@@ -1047,52 +1079,84 @@ class BrowserManager extends EventEmitter {
     try {
       const { context } = await this.launchBrowser(acc);
       const page = await this.createPage(context);
-      await page.goto('https://rewards.bing.com/dashboard', { waitUntil: 'domcontentloaded', timeout: 45000 });
-      // React 页面按需渲染：等待目标按钮出现，不使用固定 3.5 秒阻塞。
-      await page.locator('button, [role="button"]').filter({ hasText: /可领取|领取额外积分|领取积分|claim|collect/i }).first().waitFor({ state: 'visible', timeout: 12000 }).catch(() => {});
+      const openDashboard = async () => {
+        await page.goto('https://rewards.bing.com/dashboard', { waitUntil: 'domcontentloaded', timeout: 45000 });
+        // React 按需渲染，等卡片出现即可，不做固定秒数阻塞
+        await page.locator('button').filter({ hasText: '可领取' }).first()
+          .waitFor({ state: 'visible', timeout: 12000 }).catch(() => {});
+      };
+      await openDashboard();
 
-      // 必须精确锁定 button，不能使用 div:has-text，否则会命中最外层的整个页面根 div 导致点击无效
-      const cardBtn = page.locator('button, [role="button"]').filter({ hasText: /可领取|领取额外积分|领取积分|claim|collect/i }).first();
-      if ((await cardBtn.count()) > 0) {
-        const text = await cardBtn.innerText().catch(() => '');
-        const m = text.match(/(?:可领取|领取积分|claim|collect)[\s\S]*?(\d+)/i) || text.match(/(\d+)/);
-        const pts = m ? parseInt(m[1], 10) : 0;
-        if (pts > 0) {
-          logger.log('🎁', `账号 [${accName}] 发现 ${pts} 点待领取积分，正在触发自动领取...`, '', accName);
-          await cardBtn.scrollIntoViewIfNeeded().catch(() => {});
-          await cardBtn.click({ timeout: 6000 });
+      const before = await this.readClaimablePoints(page);
+      if (before !== null && before <= 0) {
+        logger.log('🎁', `账号 [${accName}] 当前没有待领取的额外积分`, '', accName);
+        await this.commitBrowserSession();
+        await this.closeBrowser();
+        return 0;
+      }
+      if (before === null) {
+        logger.log('🎁', `账号 [${accName}] 没找到「可领取」卡片，跳过`, '', accName);
+        await this.commitBrowserSession();
+        await this.closeBrowser();
+        return 0;
+      }
 
-          let hasMore = true;
-          let rounds = 0;
-          while (hasMore && rounds < 5) {
-            rounds++;
-            const confirmBtn = page.locator('div[role="dialog"] button, div[role="dialog"] [role="button"], button').filter({ hasText: /领取积分|确认领取|立即领取|claim|collect/i }).first();
-            if ((await confirmBtn.count()) > 0 && await confirmBtn.isVisible().catch(() => false)) {
-              await confirmBtn.click({ timeout: 5000 }).catch(() => {});
-              const successText = page.locator('text=/已领取|领取成功|已完成|claimed|collected/i').first();
-              const hidden = cardBtn.waitFor({ state: 'hidden', timeout: 7000 }).catch(() => {});
-              const success = successText.waitFor({ state: 'visible', timeout: 7000 }).catch(() => {});
-              await Promise.race([hidden, success]);
-              const afterText = await cardBtn.innerText().catch(() => '');
-              const bodyText = await page.locator('body').innerText().catch(() => '');
-              if (/已领取|领取成功|已完成|claimed|collected/i.test(`${afterText} ${bodyText}`) || !(await cardBtn.isVisible().catch(() => true))) {
-                claimed = pts;
-              } else if (rounds < 2) {
-                // 微软偶尔丢掉第一次点击，短暂退避后只重试一次，避免反复触发风控。
-                await this.delay(800);
-                await cardBtn.click({ timeout: 5000 }).catch(() => {});
-              }
-            } else {
-              hasMore = false;
+      logger.log('🎁', `账号 [${accName}] 发现 ${before} 点待领取积分，正在触发自动领取...`, '', accName);
+
+      // 最多两轮：点卡片→弹窗里点「领取积分」→原地轮询数值是否下降；失败才重载重试一次，绝不无限循环
+      for (let attempt = 1; attempt <= 2 && claimed <= 0; attempt++) {
+        const cardBtn = page.locator('button').filter({ hasText: /可领取/ }).first();
+        if ((await cardBtn.count()) === 0) break;
+        await cardBtn.scrollIntoViewIfNeeded().catch(() => {});
+        await cardBtn.click({ timeout: 8000 }).catch(() => {});
+
+        const dialog = page.locator('[role="dialog"], [role="alertdialog"]').first();
+        await dialog.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
+        const dialogShown = (await dialog.count()) > 0 && await dialog.isVisible().catch(() => false);
+        if (dialogShown) {
+          const btns = dialog.locator('button');
+          const count = await btns.count();
+          // 弹窗里第一个按钮是空的关闭按钮，必须优先命中带「领取积分」的那个，否则会点成关闭
+          let target = null;
+          let fallback = null;
+          for (let i = 0; i < count; i++) {
+            const btn = btns.nth(i);
+            const text = (await btn.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+            const aria = (await btn.getAttribute('aria-label').catch(() => '')) || '';
+            const label = `${text} ${aria}`.trim();
+            if (!label) continue;
+            if (/领取积分/.test(label)) { target = btn; break; }
+            if (!fallback && /领取|确认|确定|claim|collect|okay/i.test(label)) fallback = btn;
+          }
+          if (!target) target = fallback;
+          if (target) {
+            await target.click({ timeout: 8000 }).catch(() => {});
+            // 点击后原地轮询：领到后「可领取」会变成 0（卡片也可能直接消失）
+            for (let wait = 0; wait < 10; wait++) {
+              await this.delay(1200);
+              const after = await this.readClaimablePoints(page);
+              if (after === null) { claimed = before; break; }
+              if (after < before) { claimed = before - after > 0 ? before - after : before; break; }
             }
           }
-          if (claimed > 0) {
-            logger.log('🎉', `账号 [${accName}] 成功领取待领积分 +${claimed} 分！`, '', accName);
-          }
+        }
+
+        if (claimed <= 0) {
+          await page.keyboard.press('Escape').catch(() => {});
+          await this.delay(800);
+          await openDashboard();
         }
       }
+
+      // 迁移会话：领取后余额会变，顺便把最新的会话 Cookie 存回去
       await this.commitBrowserSession();
       await this.closeBrowser();
+
+      if (claimed > 0) {
+        logger.log('🎉', `账号 [${accName}] 成功领取待领积分 +${claimed} 分！`, '', accName);
+      } else {
+        logger.log('🟡', `账号 [${accName}] 自动领取未生效（仍有 ${before} 点），本次停止重试`, '', accName);
+      }
     } catch (e) {
       logger.log('🟡', `账号 [${accName}] 领取待领积分异常: ${e.message}`, '', accName);
       await this.closeBrowser();
