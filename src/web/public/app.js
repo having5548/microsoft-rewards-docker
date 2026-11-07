@@ -64,6 +64,132 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(fetchBrowserStatus, 2500); // 2.5秒轮询无头浏览器状态
 });
 
+function getRewardsAppOfficialIconHtml() {
+  return `<span class="rewards-app-icon-wrap" aria-hidden="true">
+    <span class="rewards-app-icon-fallback">🎁</span>
+    <img class="rewards-app-official-icon"
+      src="https://bing.com/th?id=OMR.icon-96.png&amp;pid=Rewards"
+      alt=""
+      loading="lazy"
+      referrerpolicy="no-referrer"
+      onerror="this.style.display='none'">
+  </span>`;
+}
+
+function render7DayStreakTrack(streak, fallbackDays, fallbackDone, streakTitle) {
+  let completedDays = 0;
+  if (streak && typeof streak.completedDays === 'number') {
+    completedDays = Number(streak.completedDays || 0);
+  } else if (fallbackDays) {
+    completedDays = (fallbackDays % 7) || (fallbackDone ? 7 : 0);
+  } else if (fallbackDone) {
+    completedDays = 1;
+  }
+  completedDays = Math.min(7, Math.max(0, completedDays));
+
+  const fillPercent = completedDays <= 0 ? 0 : Math.min(100, Math.round(((completedDays - 0.5) / 6.5) * 100));
+
+  let nodesHtml = '';
+  for (let d = 1; d <= 6; d++) {
+    if (d < completedDays) {
+      nodesHtml += `<div class="streak-step-node done-circle" data-tip="第 ${d} 天：已打卡"><span class="step-check">✓</span></div>`;
+    } else if (d === completedDays) {
+      nodesHtml += `<div class="streak-step-node active-pill" data-tip="第 ${d} 天：已打卡达成"><span class="step-check">✓</span><span class="step-num">${d}</span></div>`;
+    } else {
+      nodesHtml += `<div class="streak-step-node pending-circle" data-tip="第 ${d} 天：待打卡"></div>`;
+    }
+  }
+
+  if (completedDays >= 7) {
+    nodesHtml += `<div class="streak-step-node goal-pill done" data-tip="第 7 天：连续达成 100 积分大奖！"><span class="step-star">✦</span><span class="step-pts">100</span></div>`;
+  } else {
+    nodesHtml += `<div class="streak-step-node goal-pill pending" data-tip="第 7 天：达成额外奖励 100 积分"><span class="step-star">✦</span><span class="step-pts">100</span></div>`;
+  }
+
+  return `
+    <div class="streak-7day-wrap">
+      <div class="streak-7day-header">
+        <span class="streak-7day-title">${escapeHtml(streakTitle)}</span>
+        <span class="streak-7day-badge">已连签 ${completedDays} / 7 天</span>
+      </div>
+      <div class="streak-7day-rail">
+        <div class="streak-7day-line"></div>
+        <div class="streak-7day-line-fill" style="width: ${fillPercent}%;"></div>
+        ${nodesHtml}
+      </div>
+    </div>
+  `;
+}
+
+function renderStampsGrid(stamps) {
+  const container = document.getElementById('stamps-grid-track');
+  if (!container) return;
+  const progress = Number(stamps?.progress || 0);
+  const max = Number(stamps?.max || 12) || 12;
+
+  const starPath = 'M12 2 L13.8 7.8 L19.5 8.5 L15.2 12.3 L16.5 18 L12 15 L7.5 18 L8.8 12.3 L4.5 8.5 L10.2 7.8 Z';
+
+  let html = '';
+  for (let i = 1; i <= max; i++) {
+    const isCollected = i <= progress;
+    const isGoal = i === max;
+    const tip = isCollected
+      ? `第 ${i} 个印章：已集齐`
+      : (isGoal ? `第 ${i} 个印章：集满赢取 1,000 积分大奖！` : `第 ${i} 个印章：待集齐`);
+
+    html += `
+      <div class="stamp-grid-item ${isCollected ? 'collected' : 'uncollected'}${isGoal ? ' is-goal' : ''}" data-tip="${tip}" aria-label="${tip}">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="${starPath}" />
+        </svg>
+      </div>
+    `;
+  }
+  container.innerHTML = html;
+}
+
+function renderAccountStampsList(accounts) {
+  const container = document.getElementById('stamps-account-list');
+  if (!container) return;
+  const starPath = 'M12 2 L13.8 7.8 L19.5 8.5 L15.2 12.3 L16.5 18 L12 15 L7.5 18 L8.8 12.3 L4.5 8.5 L10.2 7.8 Z';
+
+  container.innerHTML = (accounts || []).map(acc => {
+    const stamps = acc.stamps || { progress: 0, max: 12 };
+    const max = Math.max(1, Number(stamps.max || 12));
+    const progress = Math.max(0, Math.min(max, Number(stamps.progress || 0)));
+    const dots = Array.from({ length: max }, (_, index) => {
+      const day = index + 1;
+      return `<span class="mini-stamp ${day <= progress ? 'collected' : 'uncollected'}${day === max ? ' is-goal' : ''}" title="${escapeHtml(acc.name || '账号')}：第 ${day} 个印章${day <= progress ? '已集齐' : '待集齐'}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${starPath}"/></svg>
+      </span>`;
+    }).join('');
+
+    return `
+      <div class="stamp-account-row">
+        <div class="stamp-account-head">
+          <span class="stamp-account-name" title="${escapeHtml(acc.name || '账号')}">${escapeHtml(acc.name || '账号')}</span>
+          <span class="stamp-account-count">${progress} / ${max}</span>
+        </div>
+        <div class="stamp-account-dots">${dots}</div>
+      </div>
+    `;
+  }).join('') || '<div class="stamp-account-empty">暂无账号印章数据</div>';
+}
+
+function renderHeroAccountBreakdown(containerId, accounts, valueKey, formatter) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = (accounts || []).map(acc => {
+    const value = Number(acc[valueKey] || 0);
+    return `
+      <div class="hero-account-row">
+        <span class="hero-account-name" title="${escapeHtml(acc.name || '账号')}">${escapeHtml(acc.name || '账号')}</span>
+        <span class="hero-account-value">${escapeHtml(formatter(value))}</span>
+      </div>
+    `;
+  }).join('') || '<div class="hero-account-empty">暂无账号数据</div>';
+}
+
 const GLASS_SURFACE_SELECTOR = [
   '.header',
   '.account-selector-section',

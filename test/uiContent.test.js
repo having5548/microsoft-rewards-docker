@@ -233,3 +233,17 @@ test('全局网络支持直连与默认代理二选一，向导测试使用选�
   assert.match(appJs, /proxyUrl: proxy\.url/);
   assert.match(appJs, /proxyUrl: target\.proxyUrl/);
 });
+
+test('删除视觉设置时不能误删渲染函数（renderStampsGrid 等必须仍在）', () => {
+  // 2026-11-07 事故：按行号删除视觉代码块时把中间 5 个渲染函数一起删了，
+  // 前端点「官网同步」直接报 renderStampsGrid is not defined
+  for (const fn of [
+    'renderStampsGrid',
+    'renderAccountStampsList',
+    'render7DayStreakTrack',
+    'renderHeroAccountBreakdown',
+    'getRewardsAppOfficialIconHtml'
+  ]) {
+    assert.ok(appJs.includes(`function ${fn}(`), `${fn} 必须在 app.js 中定义`);
+  }
+});
