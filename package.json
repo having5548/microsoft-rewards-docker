@@ -1,6 +1,6 @@
 {
   "name": "microsoft-rewards-docker",
-  "version": "1.9.9",
+  "version": "1.9.10",
   "description": "Microsoft Rewards 微软积分全能自动化助手 (Docker/WebUI版)，支持全任务自动化、现代化毛玻璃看板、代理配置与多渠道推送。",
   "main": "src/index.js",
   "type": "module",
@@ -28,7 +28,8 @@
     "node-cron": "^3.0.3",
     "patchright-core": "^1.64.0",
     "socks": "^2.8.10",
-    "socks-proxy-agent": "^8.0.5"
+    "socks-proxy-agent": "^8.0.5",
+    "ws": "^8.22.1"
   },
   "contributors": [
     "wangheqiang530 (original project)"

@@ -9,6 +9,7 @@ import logger from '../logger.js';
 import taskManager from '../core/taskManager.js';
 import authManager from '../core/auth.js';
 import notifier from '../core/notifier.js';
+import { qqBindManager } from '../core/qqBind.js';
 import scheduler from '../scheduler.js';
 import rewardsApi from '../core/api.js';
 import networkClient from '../network.js';
@@ -23,7 +24,7 @@ import { normalizeProxyUrl } from '../core/proxy.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CURRENT_VERSION = '1.9.9';
+const CURRENT_VERSION = '1.9.10';
 
 let lastCpuInfo = os.cpus().map(c => c.times);
 
@@ -1286,6 +1287,28 @@ export function createServer() {
     } catch (e) {
       res.status(500).json({ success: false, message: e.message });
     }
+  });
+
+  // 10.1 QQ 机器人 OpenID 自动获取：连官方网关，用户把验证码发给机器人后从事件里取 OpenID
+  app.post('/api/notify/qq/bind', async (req, res) => {
+    try {
+      const { appId, clientSecret, kind } = req.body || {};
+      const data = await qqBindManager.start({ appId, clientSecret, kind: kind || 'group' });
+      res.json({ success: true, data });
+    } catch (e) {
+      res.status(400).json({ success: false, message: e.message });
+    }
+  });
+
+  app.get('/api/notify/qq/bind/:id', (req, res) => {
+    const data = qqBindManager.getSession(req.params.id);
+    if (!data) return res.status(404).json({ success: false, message: '绑定会话不存在或已过期' });
+    res.json({ success: true, data });
+  });
+
+  app.post('/api/notify/qq/bind/:id/cancel', (req, res) => {
+    qqBindManager.cancel(req.params.id);
+    res.json({ success: true });
   });
 
   // 11. 获取历史积分趋势与明细 (支持单账号与全局汇总)

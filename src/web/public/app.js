@@ -50,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initUIEvents();
   initInstantTooltips();
-  initLiquidVisuals();
   initGlassSurfaces();
   startCountdownTimer();
   fetchStatus();
@@ -64,431 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(fetchSystemMetrics, 4000); // 4秒轮询硬件与网络延时
   setInterval(fetchBrowserStatus, 2500); // 2.5秒轮询无头浏览器状态
 });
-
-// =========================================================================
-// 🎨 iOS 液态玻璃风格与 WebGL2 动态背景引擎联动
-// =========================================================================
-
-const DEFAULT_VISUAL_CONFIG = {
-  bgEnabled: true,
-  bgStyle: 'grainient',
-  colorTheme: 'aurora',
-  bgSpeed: 1.0,
-  bgNoise: 25,
-  mouseTurbulence: 100,
-  cardOpacity: 65,
-  cardBlur: 20,
-  borderGlow: 100,
-  liquidSheen: 100,
-  mouseFollow: false,
-  rimSpread: 34,
-  cardTilt: false
-};
-
-const THEME_ACCENT_COLORS = {
-  aurora: { rgb: '250, 17, 79', secRgb: '0, 245, 212' },
-  sunset: { rgb: '244, 63, 94', secRgb: '245, 158, 11' },
-  ocean: { rgb: '2, 132, 199', secRgb: '6, 182, 212' },
-  emerald: { rgb: '16, 185, 129', secRgb: '161, 255, 0' },
-  monochrome: { rgb: '148, 163, 184', secRgb: '203, 213, 225' }
-};
-
-let currentVisualConfig = { ...DEFAULT_VISUAL_CONFIG };
-
-function normalizeColorTheme(theme) {
-  const aliases = {
-    purple: 'sunset',
-    amber: 'sunset',
-    titanium: 'monochrome'
-  };
-  const normalized = aliases[theme] || theme;
-  return THEME_ACCENT_COLORS[normalized] ? normalized : 'aurora';
-}
-
-function normalizeBgStyle(style) {
-  const aliases = {
-    fluid: 'silk',
-    geometry: 'prism',
-    nebula: 'veil',
-    cyber: 'prism'
-  };
-  const normalized = aliases[style] || style;
-  return ['silk', 'grainient', 'veil', 'aurora', 'prism'].includes(normalized) ? normalized : 'silk';
-}
-
-function getRewardsAppOfficialIconHtml() {
-  return `<span class="rewards-app-icon-wrap" aria-hidden="true">
-    <span class="rewards-app-icon-fallback">🎁</span>
-    <img class="rewards-app-official-icon"
-      src="https://bing.com/th?id=OMR.icon-96.png&amp;pid=Rewards"
-      alt=""
-      loading="lazy"
-      referrerpolicy="no-referrer"
-      onerror="this.style.display='none'">
-  </span>`;
-}
-
-function render7DayStreakTrack(streak, fallbackDays, fallbackDone, streakTitle) {
-  let completedDays = 0;
-  if (streak && typeof streak.completedDays === 'number') {
-    completedDays = Number(streak.completedDays || 0);
-  } else if (fallbackDays) {
-    completedDays = (fallbackDays % 7) || (fallbackDone ? 7 : 0);
-  } else if (fallbackDone) {
-    completedDays = 1;
-  }
-  completedDays = Math.min(7, Math.max(0, completedDays));
-
-  const fillPercent = completedDays <= 0 ? 0 : Math.min(100, Math.round(((completedDays - 0.5) / 6.5) * 100));
-
-  let nodesHtml = '';
-  for (let d = 1; d <= 6; d++) {
-    if (d < completedDays) {
-      nodesHtml += `<div class="streak-step-node done-circle" data-tip="第 ${d} 天：已打卡"><span class="step-check">✓</span></div>`;
-    } else if (d === completedDays) {
-      nodesHtml += `<div class="streak-step-node active-pill" data-tip="第 ${d} 天：已打卡达成"><span class="step-check">✓</span><span class="step-num">${d}</span></div>`;
-    } else {
-      nodesHtml += `<div class="streak-step-node pending-circle" data-tip="第 ${d} 天：待打卡"></div>`;
-    }
-  }
-
-  if (completedDays >= 7) {
-    nodesHtml += `<div class="streak-step-node goal-pill done" data-tip="第 7 天：连续达成 100 积分大奖！"><span class="step-star">✦</span><span class="step-pts">100</span></div>`;
-  } else {
-    nodesHtml += `<div class="streak-step-node goal-pill pending" data-tip="第 7 天：达成额外奖励 100 积分"><span class="step-star">✦</span><span class="step-pts">100</span></div>`;
-  }
-
-  return `
-    <div class="streak-7day-wrap">
-      <div class="streak-7day-header">
-        <span class="streak-7day-title">${escapeHtml(streakTitle)}</span>
-        <span class="streak-7day-badge">已连签 ${completedDays} / 7 天</span>
-      </div>
-      <div class="streak-7day-rail">
-        <div class="streak-7day-line"></div>
-        <div class="streak-7day-line-fill" style="width: ${fillPercent}%;"></div>
-        ${nodesHtml}
-      </div>
-    </div>
-  `;
-}
-
-function renderStampsGrid(stamps) {
-  const container = document.getElementById('stamps-grid-track');
-  if (!container) return;
-  const progress = Number(stamps?.progress || 0);
-  const max = Number(stamps?.max || 12) || 12;
-
-  const starPath = 'M12 2 L13.8 7.8 L19.5 8.5 L15.2 12.3 L16.5 18 L12 15 L7.5 18 L8.8 12.3 L4.5 8.5 L10.2 7.8 Z';
-
-  let html = '';
-  for (let i = 1; i <= max; i++) {
-    const isCollected = i <= progress;
-    const isGoal = i === max;
-    const tip = isCollected
-      ? `第 ${i} 个印章：已集齐`
-      : (isGoal ? `第 ${i} 个印章：集满赢取 1,000 积分大奖！` : `第 ${i} 个印章：待集齐`);
-
-    html += `
-      <div class="stamp-grid-item ${isCollected ? 'collected' : 'uncollected'}${isGoal ? ' is-goal' : ''}" data-tip="${tip}" aria-label="${tip}">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="${starPath}" />
-        </svg>
-      </div>
-    `;
-  }
-  container.innerHTML = html;
-}
-
-function renderAccountStampsList(accounts) {
-  const container = document.getElementById('stamps-account-list');
-  if (!container) return;
-  const starPath = 'M12 2 L13.8 7.8 L19.5 8.5 L15.2 12.3 L16.5 18 L12 15 L7.5 18 L8.8 12.3 L4.5 8.5 L10.2 7.8 Z';
-
-  container.innerHTML = (accounts || []).map(acc => {
-    const stamps = acc.stamps || { progress: 0, max: 12 };
-    const max = Math.max(1, Number(stamps.max || 12));
-    const progress = Math.max(0, Math.min(max, Number(stamps.progress || 0)));
-    const dots = Array.from({ length: max }, (_, index) => {
-      const day = index + 1;
-      return `<span class="mini-stamp ${day <= progress ? 'collected' : 'uncollected'}${day === max ? ' is-goal' : ''}" title="${escapeHtml(acc.name || '账号')}：第 ${day} 个印章${day <= progress ? '已集齐' : '待集齐'}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${starPath}"/></svg>
-      </span>`;
-    }).join('');
-
-    return `
-      <div class="stamp-account-row">
-        <div class="stamp-account-head">
-          <span class="stamp-account-name" title="${escapeHtml(acc.name || '账号')}">${escapeHtml(acc.name || '账号')}</span>
-          <span class="stamp-account-count">${progress} / ${max}</span>
-        </div>
-        <div class="stamp-account-dots">${dots}</div>
-      </div>
-    `;
-  }).join('') || '<div class="stamp-account-empty">暂无账号印章数据</div>';
-}
-
-function renderHeroAccountBreakdown(containerId, accounts, valueKey, formatter) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  container.innerHTML = (accounts || []).map(acc => {
-    const value = Number(acc[valueKey] || 0);
-    return `
-      <div class="hero-account-row">
-        <span class="hero-account-name" title="${escapeHtml(acc.name || '账号')}">${escapeHtml(acc.name || '账号')}</span>
-        <span class="hero-account-value">${escapeHtml(formatter(value))}</span>
-      </div>
-    `;
-  }).join('') || '<div class="hero-account-empty">暂无账号数据</div>';
-}
-
-function applyVisualConfig(cfg = {}) {
-  currentVisualConfig = { ...DEFAULT_VISUAL_CONFIG, ...cfg };
-  const v = currentVisualConfig;
-  v.colorTheme = normalizeColorTheme(v.colorTheme);
-  v.bgStyle = normalizeBgStyle(v.bgStyle);
-
-  // 兼容小数格式归一化为百分比整数
-  if (typeof v.cardOpacity === 'number' && v.cardOpacity > 0 && v.cardOpacity <= 1) v.cardOpacity = Math.round(v.cardOpacity * 100);
-  if (typeof v.borderGlow === 'number' && v.borderGlow > 0 && v.borderGlow <= 2) v.borderGlow = Math.round(v.borderGlow * 100);
-  if (typeof v.liquidSheen === 'number' && v.liquidSheen > 0 && v.liquidSheen <= 2) v.liquidSheen = Math.round(v.liquidSheen * 100);
-  if (typeof v.bgNoise === 'number' && v.bgNoise > 0 && v.bgNoise <= 1) v.bgNoise = Math.round(v.bgNoise * 100);
-  if (typeof v.mouseTurbulence === 'number' && v.mouseTurbulence > 0 && v.mouseTurbulence <= 2) v.mouseTurbulence = Math.round(v.mouseTurbulence * 100);
-
-  const root = document.documentElement;
-  root.style.setProperty('--glass-opacity', (v.cardOpacity / 100).toFixed(2));
-  root.style.setProperty('--glass-blur', `${v.cardBlur}px`);
-  root.style.setProperty('--border-glow-intensity', (v.borderGlow / 100).toFixed(2));
-  root.style.setProperty('--liquid-sheen-intensity', (v.liquidSheen / 100).toFixed(2));
-  root.style.setProperty('--rim-half', `${v.rimSpread}deg`);
-  root.style.setProperty('--rim-q', `${(v.rimSpread * 0.35).toFixed(1)}deg`);
-  root.style.setProperty('--rim-mid', `${(v.rimSpread * 0.72).toFixed(1)}deg`);
-  root.style.setProperty('--rim-end', `${(v.rimSpread * 1.9).toFixed(1)}deg`);
-
-  const palette = THEME_ACCENT_COLORS[v.colorTheme] || THEME_ACCENT_COLORS.aurora;
-  root.style.setProperty('--accent-glow-rgb', palette.rgb);
-  root.style.setProperty('--accent-glow-sec-rgb', palette.secRgb);
-
-  document.body.classList.add('liquid-glass-enabled');
-  document.body.classList.toggle('webgl-bg-active', !!v.bgEnabled);
-  document.body.classList.remove('mouse-follow-enabled', 'card-tilt-enabled');
-  document.body.dataset.visualTheme = v.colorTheme || 'aurora';
-
-  localStorage.setItem('msr_visual_config', JSON.stringify(v));
-  enhanceGlassSurfaces();
-
-  if (window.LiquidBg) {
-    window.LiquidBg.setEnabled(!!v.bgEnabled);
-    window.LiquidBg.setStyle(v.bgStyle);
-    window.LiquidBg.setTheme(v.colorTheme || 'aurora');
-    window.LiquidBg.setSpeed(Number(v.bgSpeed) || 1.0);
-    window.LiquidBg.setNoise((Number(v.bgNoise) || 25) / 100);
-    window.LiquidBg.setTurbulence((Number(v.mouseTurbulence) || 100) / 100);
-  }
-
-  syncVisualInputs(v);
-}
-
-function syncVisualInputs(v) {
-  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-  const setChecked = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
-  const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.innerText = txt; };
-
-  setVal('cfg-card-opacity', v.cardOpacity);
-  setText('val-card-opacity', `${v.cardOpacity}%`);
-
-  setVal('cfg-card-blur', v.cardBlur);
-  setText('val-card-blur', `${v.cardBlur}px`);
-
-  setVal('cfg-border-glow', v.borderGlow);
-  setText('val-border-glow', `${v.borderGlow}%`);
-
-  setVal('cfg-liquid-sheen', v.liquidSheen);
-  setText('val-liquid-sheen', `${v.liquidSheen}%`);
-
-  setVal('cfg-rim-spread', v.rimSpread);
-  setText('val-rim-spread', `${v.rimSpread}°`);
-
-  setChecked('cfg-mouse-follow', v.mouseFollow);
-  setChecked('cfg-card-tilt', v.cardTilt);
-
-  setChecked('cfg-bg-enabled', v.bgEnabled);
-  setVal('cfg-bg-style', v.bgStyle);
-  setVal('cfg-color-theme', v.colorTheme);
-
-  setVal('cfg-bg-speed', v.bgSpeed);
-  setText('val-bg-speed', `${Number(v.bgSpeed).toFixed(1)}x`);
-
-  setVal('cfg-bg-noise', v.bgNoise);
-  setText('val-bg-noise', `${v.bgNoise}%`);
-
-  setVal('cfg-mouse-turb', v.mouseTurbulence);
-  setText('val-mouse-turb', `${v.mouseTurbulence}%`);
-}
-
-function readVisualInputs() {
-  const readNumber = (id, fallback) => {
-    const value = Number(document.getElementById(id)?.value);
-    return Number.isFinite(value) ? value : fallback;
-  };
-  return {
-    cardOpacity: readNumber('cfg-card-opacity', 65),
-    cardBlur: readNumber('cfg-card-blur', 20),
-    borderGlow: readNumber('cfg-border-glow', 100),
-    liquidSheen: readNumber('cfg-liquid-sheen', 100),
-    rimSpread: readNumber('cfg-rim-spread', 34),
-    mouseFollow: false,
-    cardTilt: false,
-    bgEnabled: document.getElementById('cfg-bg-enabled')?.checked ?? true,
-    bgStyle: normalizeBgStyle(document.getElementById('cfg-bg-style')?.value || 'silk'),
-    colorTheme: normalizeColorTheme(document.getElementById('cfg-color-theme')?.value || 'aurora'),
-    bgSpeed: readNumber('cfg-bg-speed', 1.0),
-    bgNoise: readNumber('cfg-bg-noise', 25),
-    mouseTurbulence: readNumber('cfg-mouse-turb', 100)
-  };
-}
-
-function initLiquidVisuals() {
-  const saved = localStorage.getItem('msr_visual_config');
-  if (saved) {
-    try {
-      applyVisualConfig(JSON.parse(saved));
-    } catch (e) {
-      applyVisualConfig(DEFAULT_VISUAL_CONFIG);
-    }
-  } else {
-    applyVisualConfig(DEFAULT_VISUAL_CONFIG);
-  }
-
-  const bindRange = (id, valId, unit, key, scale = 1) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener('input', () => {
-      const v = el.value;
-      const valEl = document.getElementById(valId);
-      if (valEl) valEl.innerText = `${v}${unit}`;
-      const patch = {};
-      patch[key] = scale === 1 ? Number(v) : parseFloat(v);
-      applyVisualConfig(patch);
-    });
-  };
-
-  bindRange('cfg-card-opacity', 'val-card-opacity', '%', 'cardOpacity');
-  bindRange('cfg-card-blur', 'val-card-blur', 'px', 'cardBlur');
-  bindRange('cfg-border-glow', 'val-border-glow', '%', 'borderGlow');
-  bindRange('cfg-liquid-sheen', 'val-liquid-sheen', '%', 'liquidSheen');
-  bindRange('cfg-rim-spread', 'val-rim-spread', '°', 'rimSpread');
-  bindRange('cfg-bg-speed', 'val-bg-speed', 'x', 'bgSpeed', 0.1);
-  bindRange('cfg-bg-noise', 'val-bg-noise', '%', 'bgNoise');
-  bindRange('cfg-mouse-turb', 'val-mouse-turb', '%', 'mouseTurbulence');
-
-  const bindCheckbox = (id, key) => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('change', () => {
-      const patch = {};
-      patch[key] = el.checked;
-      applyVisualConfig(patch);
-    });
-  };
-
-  const mouseFollow = document.getElementById('cfg-mouse-follow');
-  const cardTilt = document.getElementById('cfg-card-tilt');
-  if (mouseFollow) mouseFollow.checked = false;
-  if (cardTilt) cardTilt.checked = false;
-  bindCheckbox('cfg-bg-enabled', 'bgEnabled');
-
-  const bindSelect = (id, key) => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('change', () => {
-      const patch = {};
-      patch[key] = el.value;
-      applyVisualConfig(patch);
-    });
-  };
-
-  bindSelect('cfg-bg-style', 'bgStyle');
-  bindSelect('cfg-color-theme', 'colorTheme');
-
-  document.getElementById('btn-preset-ios')?.addEventListener('click', () => applyVisualPreset('ios-glass'));
-  document.getElementById('btn-preset-aurora')?.addEventListener('click', () => applyVisualPreset('aurora-night'));
-  document.getElementById('btn-preset-ocean')?.addEventListener('click', () => applyVisualPreset('deep-ocean'));
-  document.getElementById('btn-preset-titanium')?.addEventListener('click', () => applyVisualPreset('matte-titanium'));
-  document.getElementById('btn-reset-visual')?.addEventListener('click', () => resetVisualDefaults());
-}
-
-function applyVisualPreset(presetName) {
-  let patch = {};
-  if (presetName === 'ios-glass') {
-    patch = {
-      cardOpacity: 55,
-      cardBlur: 24,
-      borderGlow: 120,
-      liquidSheen: 120,
-      mouseFollow: false,
-      rimSpread: 30,
-      cardTilt: false,
-      bgEnabled: true,
-      bgStyle: 'silk',
-      colorTheme: 'ocean',
-      bgSpeed: 0.8,
-      bgNoise: 20,
-      mouseTurbulence: 90
-    };
-  } else if (presetName === 'aurora-night') {
-    patch = {
-      cardOpacity: 65,
-      cardBlur: 20,
-      borderGlow: 110,
-      liquidSheen: 100,
-      mouseFollow: false,
-      rimSpread: 34,
-      cardTilt: false,
-      bgEnabled: true,
-      bgStyle: 'veil',
-      colorTheme: 'aurora',
-      bgSpeed: 1.0,
-      bgNoise: 25,
-      mouseTurbulence: 100
-    };
-  } else if (presetName === 'deep-ocean') {
-    patch = {
-      cardOpacity: 60,
-      cardBlur: 22,
-      borderGlow: 100,
-      liquidSheen: 110,
-      mouseFollow: false,
-      rimSpread: 42,
-      cardTilt: false,
-      bgEnabled: true,
-      bgStyle: 'grainient',
-      colorTheme: 'ocean',
-      bgSpeed: 1.2,
-      bgNoise: 20,
-      mouseTurbulence: 130
-    };
-  } else if (presetName === 'matte-titanium') {
-    patch = {
-      cardOpacity: 75,
-      cardBlur: 16,
-      borderGlow: 80,
-      liquidSheen: 60,
-      mouseFollow: true,
-      rimSpread: 26,
-      cardTilt: false,
-      bgEnabled: true,
-      bgStyle: 'grainient',
-      colorTheme: 'monochrome',
-      bgSpeed: 0.5,
-      bgNoise: 40,
-      mouseTurbulence: 50
-    };
-  }
-  applyVisualConfig(patch);
-}
-
-function resetVisualDefaults() {
-  applyVisualConfig(DEFAULT_VISUAL_CONFIG);
-}
 
 const GLASS_SURFACE_SELECTOR = [
   '.header',
@@ -647,6 +221,9 @@ function initUIEvents() {
     setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true);
   });
   document.getElementById('cfg-ui-theme')?.addEventListener('change', (event) => setTheme(event.target.value, true));
+
+  // QQ 机器人：一键自动获取 OpenID（群聊 group_openid / 私聊 user_openid）
+  document.getElementById('btn-qq-bind-openid')?.addEventListener('click', startQQOpenidBind);
 
   // 立即运行 & 停止 (支持全局与单账号)
   document.getElementById('btn-run')?.addEventListener('click', runTasks);
@@ -4038,10 +3615,6 @@ function populateSettingsForm() {
   if (qqSecretEl) qqSecretEl.value = qqBot.clientSecret || '';
   if (qqTypeEl) qqTypeEl.value = ['group', 'user', 'channel'].includes(qqBot.openidType) ? qqBot.openidType : 'group';
   if (qqOpenidEl) qqOpenidEl.value = qqBot.openid || '';
-
-  // 液态视觉与背景
-  const visualVal = c.visual || JSON.parse(localStorage.getItem('msr_visual_config') || 'null') || DEFAULT_VISUAL_CONFIG;
-  applyVisualConfig(visualVal);
 }
 
 function loadAccountIntoForm(accId) {
@@ -4174,16 +3747,13 @@ async function saveSettingsFromModal() {
     currentAccounts.push(updatedAccountData);
   }
 
-  const selectedTheme = 'dark';
+  // 主题以设置项当前值为准，避免保存时把用户选的浅色又掰回暗色
+  const selectedTheme = document.getElementById('cfg-ui-theme')?.value || currentTheme || 'system';
   setTheme(selectedTheme);
-
-  const visualConfig = readVisualInputs();
-  localStorage.setItem('msr_visual_config', JSON.stringify(visualConfig));
-  applyVisualConfig(visualConfig);
 
   const updateData = {
     accounts: currentAccounts,
-    visual: visualConfig,
+    ui: { theme: selectedTheme },
     network: {
       useProxy,
       proxyUrl: proxyDraftsForSave.find(item => item.id === defaultProxyId)?.url || '',
@@ -4361,6 +3931,96 @@ async function saveGuideSettings() {
   fetchStatus();
   switchStep(4);
 }
+
+// ===== QQ 机器人 OpenID 自动获取 =====
+// QQ 不提供查询 OpenID 的接口，只能被动接收事件：
+// 这里生成 4 位验证码 → 后端连官方网关 → 用户把验证码发给机器人 → 从事件里取出 OpenID
+let qqBindTimer = null;
+let qqBindId = null;
+
+function setQQBindStatus(text, cls = '') {
+  const el = document.getElementById('qq-bind-status');
+  if (!el) return;
+  el.innerText = text || '';
+  el.className = `form-hint qq-bind-status${cls ? ` ${cls}` : ''}`;
+}
+
+function stopQQBindPolling() {
+  if (qqBindTimer) {
+    clearInterval(qqBindTimer);
+    qqBindTimer = null;
+  }
+}
+
+async function startQQOpenidBind() {
+  const appId = document.getElementById('cfg-notify-qq-appid')?.value.trim() || '';
+  const clientSecret = document.getElementById('cfg-notify-qq-secret')?.value.trim() || '';
+  const kind = document.getElementById('cfg-notify-qq-type')?.value || 'group';
+  if (!appId || !clientSecret) {
+    setQQBindStatus('请先填写 AppID 与 AppSecret', 'warn');
+    return;
+  }
+  if (kind === 'channel') {
+    setQQBindStatus('频道没有自动获取能力，请直接填 channel_id', 'warn');
+    return;
+  }
+
+  const btn = document.getElementById('btn-qq-bind-openid');
+  stopQQBindPolling();
+  if (btn) { btn.disabled = true; btn.innerText = '⏳ 等待接收…'; }
+  setQQBindStatus('正在连接 QQ 网关…');
+
+  try {
+    const res = await fetch('/api/notify/qq/bind', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appId, clientSecret, kind })
+    }).then(r => r.json());
+    if (!res.success) throw new Error(res.message || '启动绑定失败');
+    qqBindId = res.data.bindId;
+    const code = res.data.verifyCode;
+    const target = kind === 'group' ? '在群里 @机器人' : '私聊机器人';
+    setQQBindStatus(`验证码 ${code}：请在 ${res.data.timeoutSec} 秒内${target}发送「${code}」`, 'ok');
+
+    const startedAt = Date.now();
+    qqBindTimer = setInterval(async () => {
+      if (Date.now() - startedAt > (res.data.timeoutSec + 10) * 1000) {
+        stopQQBindPolling();
+        setQQBindStatus('等待超时，请重试', 'warn');
+        if (btn) { btn.disabled = false; btn.innerText = '🔗 自动获取 OpenID'; }
+        return;
+      }
+      let state;
+      try {
+        state = await fetch(`/api/notify/qq/bind/${qqBindId}`).then(r => r.json());
+      } catch { return; }
+      if (!state.success) return;
+      const d = state.data;
+      if (d.status === 'success') {
+        stopQQBindPolling();
+        const input = document.getElementById('cfg-notify-qq-openid');
+        if (input) {
+          input.value = d.openid;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        setQQBindStatus(`已获取并填入 OpenID（${d.kind === 'group' ? '群聊' : '私聊'}）`, 'ok');
+        showToast('已自动获取 QQ OpenID', 'ok');
+        if (btn) { btn.disabled = false; btn.innerText = '🔗 自动获取 OpenID'; }
+      } else if (d.status === 'failed' || d.status === 'cancelled') {
+        stopQQBindPolling();
+        setQQBindStatus(d.message || '绑定失败，请重试', 'warn');
+        if (btn) { btn.disabled = false; btn.innerText = '🔗 自动获取 OpenID'; }
+      } else if (d.message) {
+        setQQBindStatus(`${d.message}`.replace(/（当前.*?）/, ''), '');
+      }
+    }, 2000);
+  } catch (e) {
+    stopQQBindPolling();
+    setQQBindStatus(e.message || '启动绑定失败', 'warn');
+    if (btn) { btn.disabled = false; btn.innerText = '🔗 自动获取 OpenID'; }
+  }
+}
+window.startQQOpenidBind = startQQOpenidBind;
 
 window.testNotifyChannel = async function(channel) {
   let val = '';

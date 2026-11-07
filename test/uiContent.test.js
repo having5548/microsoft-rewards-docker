@@ -62,8 +62,9 @@ test('浅色模式不再残留深色块，日志与状态条同步换成浅色�
 test('禁用鼠标边缘高光与卡片倾斜', () => {
   assert.equal(appJs.includes('initLiquidMouseFollower'), false);
   assert.equal(appJs.includes("classList.toggle('mouse-follow-enabled'"), false);
-  assert.ok(indexHtml.includes('id="cfg-mouse-follow" disabled'));
-  assert.ok(indexHtml.includes('id="cfg-card-tilt" disabled'));
+  // 相关开关已随视觉设置整块删除，不再出现在页面上
+  assert.equal(indexHtml.includes('cfg-mouse-follow'), false);
+  assert.equal(indexHtml.includes('cfg-card-tilt'), false);
 });
 
 test('发布版本号在 package 与 Web 服务端保持一致', () => {
@@ -82,17 +83,15 @@ test('任务区使用移动端签到与三组 7 日连续进度', () => {
   assert.match(appJs, /TASK_PRIORITY[\s\S]*search: 10[\s\S]*dailySet: 20[\s\S]*sign: 30/);
 });
 
-test('液态玻璃视觉包含 WebGL2 背景、统一卡片材质与配置项', () => {
-  assert.match(indexHtml, /id="bg-webgl-canvas"/);
-  assert.match(indexHtml, /id="tab-appearance"/);
+test('配置中心已移除不生效的液态视觉与背景设置', () => {
+  // UI 重构后这些开关不再影响呈现，整块设置连 WebGL 画布一起删掉，避免用户白调
+  assert.equal(indexHtml.includes('tab-appearance'), false);
+  assert.equal(indexHtml.includes('bg-webgl-canvas'), false);
+  assert.equal(indexHtml.includes('webgl-bg.js'), false);
+  assert.equal(appJs.includes('initLiquidVisuals'), false);
+  assert.equal(appJs.includes('applyVisualConfig'), false);
+  // 卡片材质本身仍由 style.css 提供
   assert.match(styleCss, /\.glass-surface\.glass-surface/);
-  assert.match(styleCss, /--glass-opacity/);
-  assert.match(webglJs, /#version 300 es/);
-  assert.match(webglJs, /renderSilk/);
-  assert.match(webglJs, /renderGrainient/);
-  assert.match(webglJs, /renderVeil/);
-  assert.match(webglJs, /renderSoftAurora/);
-  assert.match(webglJs, /renderPrism/);
 });
 
 test('主题支持系统、浅色、暗色选择并保持下拉菜单可读', () => {

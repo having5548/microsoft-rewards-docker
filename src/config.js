@@ -95,21 +95,6 @@ const DEFAULT_CONFIG = {
   ui: {
     theme: 'dark'
   },
-  visual: {
-    bgEnabled: true,
-    bgStyle: 'grainient',
-    colorTheme: 'aurora',
-    bgSpeed: 1.0,
-    bgNoise: 25,
-    mouseTurbulence: 100,
-    cardOpacity: 65,
-    cardBlur: 20,
-    borderGlow: 100,
-    liquidSheen: 100,
-    mouseFollow: true,
-    rimSpread: 34,
-    cardTilt: true
-  },
   server: {
     port: 5308,
     authPassword: ''

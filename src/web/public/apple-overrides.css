@@ -183,3 +183,10 @@ body.mouse-follow-enabled .glass-surface::before { display: none !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* QQ 机器人自动获取 OpenID 的一行：按钮与状态文案并排，状态弱化显示 */
+.qq-bind-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.qq-bind-row .btn { flex: 0 0 auto; }
+.qq-bind-status { margin: 0; min-height: 1em; }
+.qq-bind-status.ok { color: var(--apple-green) !important; }
+.qq-bind-status.warn { color: var(--apple-red) !important; }

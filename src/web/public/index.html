@@ -10,7 +10,6 @@
 </head>
 <body>
   <!-- WebGL2 全屏动态液态玻璃着色器背景画布 -->
-  <canvas id="bg-webgl-canvas" class="bg-webgl-canvas"></canvas>
   <div class="app-container">
     <!-- 顶部主控台导航栏 -->
     <header class="header">
@@ -23,7 +22,7 @@
           <!-- 版本与状态复合胶囊 (结合更新检测与状态展示) -->
           <div class="version-status-pill status-idle" id="version-status-pill" title="系统状态: 后台定时就绪中 | 点击检查版本更新">
             <span class="status-dot"></span>
-            <span class="version-label" id="version-label">v1.9.9</span>
+            <span class="version-label" id="version-label">v1.9.10</span>
             <span class="update-indicator" id="update-indicator" style="display: none;">
               <span class="update-icon">🚀</span>
               <span class="update-text" id="update-text">有更新</span>
@@ -439,7 +438,6 @@
           <button class="tab-btn" data-tab="tab-tasks">⚡ 任务与防风控</button>
           <button class="tab-btn" data-tab="tab-schedule">⏱️ 定时巡检</button>
           <button class="tab-btn" data-tab="tab-notify">🔔 消息推送</button>
-          <button class="tab-btn" data-tab="tab-appearance">✨ 液态视觉与背景</button>
         </div>
 
         <!-- Tab: 多账号配置与管理 -->
@@ -745,157 +743,14 @@
               </select>
               <input type="text" id="cfg-notify-qq-openid" class="form-input" placeholder="OpenID（群聊填 group_openid，私聊填 user_openid）">
             </div>
-            <small class="form-hint">发送目标选「群聊」填 <code>group_openid</code>，选「私聊」填 <code>user_openid</code>，选「频道」填 <code>channel_id</code>；AppID 与 AppSecret 在 QQ 开放平台机器人管理中获取。</small>
+            <div class="qq-bind-row">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-qq-bind-openid">🔗 自动获取 OpenID</button>
+              <span class="form-hint qq-bind-status" id="qq-bind-status"></span>
+            </div>
+            <small class="form-hint">QQ 不提供查询 OpenID 的接口。点「自动获取」后把页面上的 4 位验证码发给机器人（群聊需 @机器人），本程序会连官方网关从消息事件里取出 OpenID 并自动填入。频道没有这个能力，请直接填 <code>channel_id</code>。</small>
           </div>
         </div>
 
-        <!-- Tab: 液态视觉与背景 -->
-        <div class="tab-content" id="tab-appearance">
-          <div class="visual-settings-section">
-            <div class="visual-section-title">
-              <span>💎</span> iOS 液态玻璃质感 (Liquid Glass)
-            </div>
-            <div class="visual-grid">
-              <div class="form-group">
-                <div class="range-header">
-                  <label class="form-label">卡片玻璃透明度</label>
-                  <span class="range-val" id="val-card-opacity">65%</span>
-                </div>
-                <input type="range" id="cfg-card-opacity" class="form-range" min="20" max="95" value="65">
-                <small class="form-hint">越低越通透，背景流光与折射越明显；默认 65%</small>
-              </div>
-
-              <div class="form-group">
-                <div class="range-header">
-                  <label class="form-label">背景磨砂模糊 (Blur)</label>
-                  <span class="range-val" id="val-card-blur">20px</span>
-                </div>
-                <input type="range" id="cfg-card-blur" class="form-range" min="0" max="40" value="20">
-                <small class="form-hint">模拟毛玻璃磨砂厚度；默认 20px</small>
-              </div>
-
-              <div class="form-group">
-                <div class="range-header">
-                  <label class="form-label">边缘高光强度 (Specular Rim)</label>
-                  <span class="range-val" id="val-border-glow">100%</span>
-                </div>
-                <input type="range" id="cfg-border-glow" class="form-range" min="0" max="200" value="100">
-                <small class="form-hint">卡片轮廓边缘光泽与锐利感；默认 100%</small>
-              </div>
-
-              <div class="form-group">
-                <div class="range-header">
-                  <label class="form-label">液态流光强度 (Liquid Sheen)</label>
-                  <span class="range-val" id="val-liquid-sheen">100%</span>
-                </div>
-                <input type="range" id="cfg-liquid-sheen" class="form-range" min="0" max="200" value="100">
-                <small class="form-hint">卡片表面内部漫射高光与折射流光；默认 100%</small>
-              </div>
-
-              <div class="form-group">
-                <div class="range-header">
-                  <label class="form-label">边框高光弧长</label>
-                  <span class="range-val" id="val-rim-spread">34°</span>
-                </div>
-                <input type="range" id="cfg-rim-spread" class="form-range" min="18" max="58" step="1" value="34">
-                <small class="form-hint">高光只沿卡片边框绕行，弧长越短越接近真实玻璃棱边</small>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">交互联动开关</label>
-                <div class="checkbox-grid" style="margin-top: 6px;">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="cfg-mouse-follow" disabled> 卡片轮廓不跟随鼠标
-                  </label>
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="cfg-card-tilt" disabled> 卡片保持静止，不启用倾斜
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <hr class="divider">
-
-          <div class="visual-settings-section">
-            <div class="visual-section-title">
-              <span>🌌</span> WebGL2 动态交互背景
-            </div>
-            <div class="checkbox-grid" style="margin-bottom: 12px;">
-              <label class="checkbox-label">
-                <input type="checkbox" id="cfg-bg-enabled" checked> 启用 WebGL2 动态液态背景 (低能耗 60FPS)
-              </label>
-            </div>
-
-            <div class="visual-grid">
-              <div class="form-group">
-                <label class="form-label">背景动画风格</label>
-                <select id="cfg-bg-style" class="form-select">
-                  <option value="silk">✨ 丝绸流光 (Silk Folds)</option>
-                  <option value="grainient">🌅 颗粒渐变 (Grainient Flow)</option>
-                  <option value="veil">🌑 暗色流体面纱 (Dark Veil)</option>
-                  <option value="aurora">🌌 柔光极光 (Soft Aurora)</option>
-                  <option value="prism">💎 棱镜光幕 (Prism Curtain)</option>
-                </select>
-                <small class="form-hint">每种风格使用独立 WebGL2 着色模型与运动节奏</small>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">背景配色方案</label>
-                <select id="cfg-color-theme" class="form-select">
-                  <option value="aurora">🔴 苹果极光 (玫瑰红 / 青绿 / 靛蓝)</option>
-                  <option value="sunset">🟠 暮光晚霞 (珊瑚红 / 琥珀 / 紫罗兰)</option>
-                  <option value="ocean">🔵 深邃海洋 (海蓝 / 青蓝 / 宝蓝)</option>
-                  <option value="emerald">🟢 青翠森林 (翡翠绿 / 青柠 / 深绿)</option>
-                  <option value="monochrome">⚪ 钛金质感 (银灰 / 石板灰 / 雾白)</option>
-                </select>
-                <small class="form-hint">全局卡片轮廓与背景着色器色调实时同步联动</small>
-              </div>
-
-              <div class="form-group">
-                <div class="range-header">
-                  <label class="form-label">背景动画速度</label>
-                  <span class="range-val" id="val-bg-speed">1.0x</span>
-                </div>
-                <input type="range" id="cfg-bg-speed" class="form-range" min="0.2" max="3.0" step="0.1" value="1.0">
-                <small class="form-hint">调节背景着色器演化速度；默认 1.0x</small>
-              </div>
-
-              <div class="form-group">
-                <div class="range-header">
-                  <label class="form-label">磨砂噪点质感 (Film Grain)</label>
-                  <span class="range-val" id="val-bg-noise">25%</span>
-                </div>
-                <input type="range" id="cfg-bg-noise" class="form-range" min="0" max="100" value="25">
-                <small class="form-hint">加入有机微噪点颗粒，增强深色磨砂与液态质感；默认 25%</small>
-              </div>
-
-              <div class="form-group">
-                <div class="range-header">
-                  <label class="form-label">鼠标交互扰动响应</label>
-                  <span class="range-val" id="val-mouse-turb">100%</span>
-                </div>
-                <input type="range" id="cfg-mouse-turb" class="form-range" min="0" max="200" value="100">
-                <small class="form-hint">鼠标掠过背景流体时的涡流与引力扰动强度；默认 100%</small>
-              </div>
-            </div>
-          </div>
-
-          <hr class="divider">
-
-          <div class="visual-settings-section">
-            <div class="visual-section-title">
-              <span>🎨</span> 快捷主题预设与重置
-            </div>
-            <div class="preset-btn-group">
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-preset-ios">💎 原生 iOS 冰晶</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-preset-aurora">🌌 极光幻夜</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-preset-ocean">🌊 深海波流</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-preset-titanium">🖤 钛金极暗</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-visual" style="margin-left: auto;">🔄 恢复默认效果</button>
-            </div>
-          </div>
-        </div>
       </div>
       <div class="modal-footer">
         <div class="settings-save-status" id="settings-save-status" aria-live="polite"></div>
@@ -1199,7 +1054,6 @@
     <div class="tooltip-footer" id="tt-balance">结余: --</div>
   </div>
 
-  <script src="webgl-bg.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

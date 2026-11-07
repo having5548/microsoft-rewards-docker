@@ -86,6 +86,7 @@ docker compose logs -f        # 看到「Web 控制台已启动」即可
 
 - 账号卡片里勾选每天的执行时间档；
 - 配置中心 → 消息推送，填你用的渠道（QQ 机器人需要 AppID / AppSecret / 目标 OpenID），点「测试」验证；
+  - QQ 机器人的 OpenID 不用自己去找：填好 AppID / AppSecret 后点「🔗 自动获取 OpenID」，页面会给出 4 位验证码，把它发给机器人（群聊里 @机器人）就会自动填入 —— QQ 没有查询 OpenID 的接口，只能靠接收消息事件取；
 - 想立刻跑一次就点「▶️ 立即执行」，日志会实时刷在面板上。
 
 ---
@@ -121,7 +122,7 @@ docker run -d \
 docker pull crpi-rre8ue869ess1fih.cn-shanghai.personal.cr.aliyuncs.com/root_having5548/msreward:latest
 ```
 
-把上面 `docker run` / compose 里的镜像地址换成它即可，tag 与 GHCR 完全一致（`latest`、`1.9`、`1.9.9`）。该仓库为公开仓库，拉取不需要登录；推送凭据只存放在 CI 的仓库 Secrets 中，不随代码分发。
+把上面 `docker run` / compose 里的镜像地址换成它即可，tag 与 GHCR 完全一致（`latest`、`1.9`、`1.9.10`）。该仓库为公开仓库，拉取不需要登录；推送凭据只存放在 CI 的仓库 Secrets 中，不随代码分发。
 
 ### 群晖 / 威联通 / 极空间 / 绿联 / 飞牛
 
@@ -271,7 +272,7 @@ docker compose up -d         # 只重建有变化的容器（data 卷不动，�
 
 - 确认版本：`curl -s http://127.0.0.1:5308/api/status | grep -o '"version":"[^"]*"'`，控制台头部胶囊也显示同一个版本号（由服务端下发，不会和镜像脱节）；
 - **回滚**：把 `image:` 换成固定 tag（如 `:1.9.2`）再 `docker compose up -d`；
-- **镜像 tag**：`latest`（跟随 main）、`1.9`、`1.9.9`；每次打 tag 会同时创建 GitHub Release。
+- **镜像 tag**：`latest`（跟随 main）、`1.9`、`1.9.10`；每次打 tag 会同时创建 GitHub Release。
 - **两个仓库同步发布**：GHCR 与阿里云 ACR 的 tag 完全一致，选一个能拉动的即可。
 
 ---
