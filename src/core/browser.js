@@ -1110,34 +1110,25 @@ class BrowserManager extends EventEmitter {
         await cardBtn.scrollIntoViewIfNeeded().catch(() => {});
         await cardBtn.click({ timeout: 8000 }).catch(() => {});
 
-        const dialog = page.locator('[role="dialog"], [role="alertdialog"]').first();
-        await dialog.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
-        const dialogShown = (await dialog.count()) > 0 && await dialog.isVisible().catch(() => false);
-        if (dialogShown) {
-          const btns = dialog.locator('button');
-          const count = await btns.count();
-          // 弹窗里第一个按钮是空的关闭按钮，必须优先命中带「领取积分」的那个，否则会点成关闭
-          let target = null;
-          let fallback = null;
-          for (let i = 0; i < count; i++) {
-            const btn = btns.nth(i);
-            const text = (await btn.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
-            const aria = (await btn.getAttribute('aria-label').catch(() => '')) || '';
-            const label = `${text} ${aria}`.trim();
-            if (!label) continue;
-            if (/领取积分/.test(label)) { target = btn; break; }
-            if (!fallback && /领取|确认|确定|claim|collect|okay/i.test(label)) fallback = btn;
-          }
-          if (!target) target = fallback;
-          if (target) {
-            await target.click({ timeout: 8000 }).catch(() => {});
-            // 点击后原地轮询：领到后「可领取」会变成 0（卡片也可能直接消失）
-            for (let wait = 0; wait < 10; wait++) {
-              await this.delay(1200);
-              const after = await this.readClaimablePoints(page);
-              if (after === null) { claimed = before; break; }
-              if (after < before) { claimed = before - after > 0 ? before - after : before; break; }
-            }
+        // 直接按文案找确认按钮，不要先取 [role=dialog].first()：
+        // 页面上可能存在别的（可见但为空）dialog 容器，取错就到不了真正的领取按钮。
+        const claimConfirm = page.locator('button').filter({ hasText: /领取积分/ }).first();
+        await claimConfirm.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
+        const confirmShown = (await claimConfirm.count()) > 0 && await claimConfirm.isVisible().catch(() => false);
+        if (!confirmShown) {
+          const candidates = await page.locator('[role="dialog"], [role="alertdialog"]')
+            .evaluateAll(list => list.map(d => (d.innerText || '').replace(/\s+/g, ' ').slice(0, 80)))
+            .catch(() => []);
+          logger.log('🟡', `账号 [${accName}] 点击「可领取」后没找到「领取积分」按钮（第 ${attempt} 轮），弹窗：${candidates.join(' | ') || '无'}`, '', accName);
+        }
+        if (confirmShown) {
+          await claimConfirm.click({ timeout: 8000 }).catch(() => {});
+          // 点击后原地轮询：领到后「可领取」会变成 0（卡片也可能直接消失）
+          for (let wait = 0; wait < 10; wait++) {
+            await this.delay(1200);
+            const after = await this.readClaimablePoints(page);
+            if (after === null) { claimed = before; break; }
+            if (after < before) { claimed = before - after > 0 ? before - after : before; break; }
           }
         }
 
